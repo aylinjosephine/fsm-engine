@@ -4,15 +4,16 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
-	plugins: [
-		react({
-			babel: {
-				plugins: [["babel-plugin-react-compiler"]],
-			},
-		}),
-		tailwindcss(),
-	],
-	build: {
-		chunkSizeWarningLimit: 1600,
-	},
+  base: "/fsm-engine/",
+  plugins: [
+    react({
+      babel: {
+        plugins: [["babel-plugin-react-compiler"]],
+      },
+    }),
+    tailwindcss(),
+  ],
+  build: {
+    chunkSizeWarningLimit: 1600,
+  },
 });
