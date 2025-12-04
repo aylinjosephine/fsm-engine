@@ -80,8 +80,6 @@ export function App() {
 
 			<Popup />
 
-			<Guide />
-
 			<TopDock />
 
 			<SaveDialog />
