@@ -35,20 +35,6 @@ const Dock = () => {
 
   const dockItems = [
     {
-      name: "New Project",
-      icon: <FilePlus stroke={iconFillColor} size={iconSize} />,
-      onclick: () => {
-        setConfirmDialog({
-          isOpen: true,
-          message:
-            "Are you sure you want to start a new project? Any unsaved work will be lost!",
-          onConfirm: () => {
-            newProject();
-          },
-        });
-      },
-    },
-    {
       name: "Undo",
       icon: <Undo2 stroke={iconFillColor} size={iconSize} />,
       onclick: () => undo(getTransitionPoints),

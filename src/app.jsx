@@ -14,6 +14,7 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import { handleShortCuts } from "./lib/editor";
 import { editor_state } from "./lib/stores";
 import { useState } from "react";
+import { sendExportToParent, importFsmFromParent, clearFsmFromParent } from "./lib/export";
 
 export function App() {
 	// Disable right click context menu
@@ -65,6 +66,27 @@ export function App() {
 			</div>
 		);
 	}
+
+	useEffect(() => {
+    function handleParentMessage(event) {
+      const { action, data } = event.data || {};
+
+      if (action === "export") {
+        sendExportToParent();
+      }
+
+      if (action === "import" && data) {
+        importFsmFromParent();
+	}
+
+      if (action === "clear") {
+       clearFsmFromParent()
+      }
+    }
+
+	window.addEventListener("message", handleParentMessage);
+    return () => window.removeEventListener("message", handleParentMessage);
+  }, []);
 
 	return (
 		<div id="body" className="w-screen h-screen bg-primary-bg overflow-hidden">
