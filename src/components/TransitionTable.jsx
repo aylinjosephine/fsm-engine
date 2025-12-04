@@ -262,12 +262,12 @@ const TransitionTable = () => {
 				maxHeight: "80vh",
 				maxWidth: "80vw",
 			}}
-			className="fixed z-50 bg-[#1e1e1e] border border-[#333] shadow-[0_0_20px_rgba(0,0,0,0.5)] rounded-lg flex flex-col overflow-hidden font-sans"
+			className="fixed z-50 bg-primary-bg border border-[#333] shadow-[0_0_20px_rgba(0,0,0,0.5)] rounded-lg flex flex-col overflow-hidden font-sans"
 		>
 			{/* Header Bar */}
 			<div
 				onMouseDown={handleMouseDown}
-				className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-[#333] cursor-move select-none flex-shrink-0"
+				className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-[#333] cursor-move select-none shrink-0"
 			>
 				<div className="flex items-center gap-2 text-gray-300">
 					<GripHorizontal size={16} className="text-gray-500" />
@@ -293,7 +293,7 @@ const TransitionTable = () => {
 			{!isMinimized && (
 				<div className="flex-1 flex flex-col overflow-hidden relative">
 					{/* Toolbar */}
-					<div className="p-2 border-b border-[#333] bg-[#1e1e1e] flex-shrink-0">
+					<div className="p-2 border-b border-[#333] bg-primary-bg shrink-0">
 						<button className="flex items-center gap-2 px-3 py-1.5 bg-[#0e639c] hover:bg-[#1177bb] text-white rounded text-xs font-medium transition-colors w-fit">
 							<Download size={14} />
 							Export CSV
@@ -311,7 +311,7 @@ const TransitionTable = () => {
 									{EngineMode.alphabets.map((alpha, idx) => (
 										<th
 											key={idx}
-											className="p-2 border-b border-[#333] font-semibold text-gray-300 min-w-[80px]"
+											className="p-2 border-b border-[#333] font-semibold text-gray-300 min-w-20"
 										>
 											{alpha}
 										</th>
@@ -324,7 +324,7 @@ const TransitionTable = () => {
 										key={nodeIdx}
 										className="border-b border-[#333] hover:bg-[#2a2d2e] transition-colors"
 									>
-										<td className="sticky left-0 z-10 bg-[#1e1e1e] p-2 border-r border-[#333] font-medium">
+										<td className="sticky left-0 z-10 bg-primary-bg p-2 border-r border-[#333] font-medium">
 											<div className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-200 text-xs border border-blue-800">
 												{node.name}
 											</div>

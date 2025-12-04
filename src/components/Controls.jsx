@@ -121,7 +121,7 @@ const Controls = () => {
 
 	return (
 		<div
-			className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-[#1e1e1e]/20 backdrop-blur-[3px] ${
+			className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-primary-bg/20 backdrop-blur-[3px] ${
 				editorState !== "Controls" && "hidden"
 			}`}
 		>

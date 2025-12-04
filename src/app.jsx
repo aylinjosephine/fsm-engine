@@ -56,7 +56,7 @@ export function App() {
 
 	if (isMobile) {
 		return (
-			<div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-gray-200 p-6 text-center">
+			<div className="h-screen w-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-gray-700 text-gray-200 p-6 text-center">
 				<p className="text-2xl font-semibold tracking-wide text-gray-100 drop-shadow-[0_0_7px_rgba(255,255,255,0.7)]">
 					FSM Engine is Designed for Desktop/Laptop use only..!
 					<br />

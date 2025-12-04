@@ -12,7 +12,7 @@ const Guide = () => {
 
 	return (
 		<div
-			className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-[#1e1e1e]/30 backdrop-blur-sm overflow-hidden ${
+			className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-primary-bg/30 backdrop-blur-sm overflow-hidden ${
 				editorState !== "Guide" && "hidden"
 			}`}
 		>

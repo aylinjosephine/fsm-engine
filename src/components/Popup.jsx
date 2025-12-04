@@ -29,7 +29,7 @@ const Popup = () => {
 				showPopup ? "top-12" : "-top-20 opacity-0"
 			}`}
 		>
-			<div className="h-full w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border-1 border-border-bg shadow-[0px_0px_50px_0px_#00000080]">
+			<div className="h-full w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]">
 				{popups[engine_mode_popup_map[EngineMode.type]]}
 			</div>
 		</div>
