@@ -1,4 +1,5 @@
 import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useState } from "react";
 import {
 	Arrow,
 	Circle,
@@ -34,7 +35,24 @@ const Editor = () => {
 	const [transitionList, _setTransitionList] = useAtom(transition_list);
 	const [_layerRef, setLayerRef] = useAtom(layer_ref);
 	const currentSelected = useAtomValue(current_selected);
-	// Jotai Atoms
+
+	// responsive stage size
+	const [stageSize, setStageSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setStageSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+
+	   window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
 	return (
 		<Stage
