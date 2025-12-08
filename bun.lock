@@ -13,7 +13,7 @@
         "react": "^19.1.1",
         "react-dom": "^19.1.1",
         "react-konva": "^19.0.10",
-        "tailwindcss": "^4.1.13",
+        "tailwindcss": "^4.1.13"
       },
       "devDependencies": {
         "@biomejs/biome": "2.3.8",
@@ -24,12 +24,12 @@
         "babel-plugin-react-compiler": "^19.1.0-rc.3",
         "baseline-browser-mapping": "^2.8.29",
         "globals": "^16.4.0",
-        "vite": "npm:rolldown-vite@7.1.12",
-      },
-    },
+        "vite": "npm:rolldown-vite@7.1.12"
+      }
+    }
   },
   "overrides": {
-    "vite": "npm:rolldown-vite@7.1.12",
+    "vite": "npm:rolldown-vite@7.1.12"
   },
   "packages": {
     "@babel/code-frame": ["@babel/code-frame@7.27.1", "", { "dependencies": { "@babel/helper-validator-identifier": "7.27.1", "js-tokens": "4.0.0", "picocolors": "1.1.1" } }, "sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg=="],
@@ -335,6 +335,6 @@
 
     "lru-cache/yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
-    "rolldown/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-beta.39", "", {}, "sha512-GkTtNCV8ObWbq3LrJStPBv9jkRPct8WlwotVjx3aU0RwfH3LyheixWK9Zhaj22C4EQj/TJxYyetoX+uOn/MWKw=="],
+    "rolldown/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-beta.39", "", {}, "sha512-GkTtNCV8ObWbq3LrJStPBv9jkRPct8WlwotVjx3aU0RwfH3LyheixWK9Zhaj22C4EQj/TJxYyetoX+uOn/MWKw=="]
   }
 }
