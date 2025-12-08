@@ -8,6 +8,12 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/main.jsx"></script>
+    <script type="module">
+      import { createRoot } from 'react-dom/client';
+      import { AppRoot } from './src/AppRoot.jsx';
+      
+      const root = createRoot(document.getElementById('root'));
+      root.render(<AppRoot />);
+    </script>
   </body>
 </html>
