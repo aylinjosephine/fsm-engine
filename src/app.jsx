@@ -69,7 +69,7 @@ export function App() {
   // TODO: live export of data
 
 	return (
-		<div id="body" className="w-screen h-screen bg-primary-bg overflow-hidden">
+		<div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
 			<Editor />
 
 			<Dock />

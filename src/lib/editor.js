@@ -1,26 +1,61 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /*
  * This file has all the functions that are used in the Editor Component
  */
 
 import {
-	active_transition,
-	alert,
-	current_selected,
-	deleted_nodes,
-	editor_state,
-	engine_mode,
-	initial_state,
-	node_list,
-	show_popup,
-	stage_ref,
-	store,
-	transition_list,
-	transition_pairs,
-	confirm_dialog_atom,
+  active_transition,
+  alert,
+  current_selected,
+  deleted_nodes,
+  editor_state,
+  engine_mode,
+  initial_state,
+  node_list,
+  show_popup,
+  stage_ref,
+  store,
+  transition_list,
+  transition_pairs,
+  confirm_dialog_atom,
 } from "./stores";
 import { addToHistory, undo, redo, clearHistory } from "./history";
 import dagre from "dagre";
 import Konva from "konva";
+
+// NEW export function
+export function exportFsmData() {
+  const nodes = store.get(node_list);
+  const transitions = store.get(transition_list);
+
+  // filter valid nodes -> remove undefined/deleted
+  const validNodes = nodes.filter(Boolean);
+
+  const fsmData = {
+    states: validNodes.map(node => ({
+      id: parseInt(node.id),
+      name: node.name,
+      x: node.x,
+      y: node.y,
+      radius: node.radius,
+      type: node.type, // {initial, intermediate, final}
+    })),
+    transitions: transitions.filter(Boolean).map(tr => ({
+      id: tr.id,
+      from: tr.from,
+      to: tr.to,
+      name: tr.name?.[0] || `tr${tr.id}`,
+      points: tr.points,
+    }))
+  };
+
+   window.dispatchEvent(new CustomEvent('fsm-export', {
+    detail: fsmData
+  }));
+
+  console.log('FSM exported to Vue:', fsmData);
+}
 
 // Handler function that is called when the editor is clicked
 export function HandleEditorClick(e) {
@@ -335,7 +370,7 @@ export function handleShortCuts(key) {
 		"Guide",
 	];
 
-	/* 
+	/*
 	Key Bindings as follows:
 	1 -> Pan,
 	2 -> Add,
@@ -725,4 +760,5 @@ export function newProject() {
 	store.set(show_popup, () => false);
 	store.set(active_transition, () => null);
 	clearHistory();
+  window.dispatchEvent(new CustomEvent('fsm-clear'));
 }
