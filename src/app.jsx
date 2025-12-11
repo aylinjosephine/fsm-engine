@@ -1,96 +1,120 @@
-import { useAtomValue } from "jotai";
-import { useEffect } from "react";
-import Alert from "./components/Alert";
-import Controls from "./components/Controls";
-import Dock from "./components/Dock";
-import Editor from "./components/Editor";
-import Guide from "./components/Guide";
-import Popup from "./components/Popup";
-import SaveDialog from "./components/SaveDialog";
-import Settings from "./components/Settings";
-import TopDock from "./components/TopDock";
-import TransitionTable from "./components/TransitionTable";
-import ConfirmDialog from "./components/ConfirmDialog";
-import { handleShortCuts } from "./lib/editor";
-import { editor_state } from "./lib/stores";
-import { useState } from "react";
+import { useAtomValue } from 'jotai'
+import { useEffect } from 'react'
+import Alert from './components/Alert'
+import Controls from './components/Controls'
+import Dock from './components/Dock'
+import Editor from './components/Editor'
+import Guide from './components/Guide'
+import Popup from './components/Popup'
+import SaveDialog from './components/SaveDialog'
+import Settings from './components/Settings'
+import TopDock from './components/TopDock'
+import TransitionTable from './components/TransitionTable'
+import ConfirmDialog from './components/ConfirmDialog'
+import { handleShortCuts } from './lib/editor'
+import { editor_state, node_list, transition_list } from './lib/stores'
+import { useState } from 'react'
+import { sendExportToParent, importFsmFromParent, clearFsmFromParent } from './lib/export.js'
 
 export function App() {
-	// Disable right click context menu
-	// Got this useEffect code from StackOverflow
-	const [isMobile, SetMobile] = useState(false);
+  // Disable right click context menu
+  // Got this useEffect code from StackOverflow
+  const [isMobile, SetMobile] = useState(false)
 
-	useEffect(() => {
-		const Device =
-			/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-				navigator.userAgent,
-			);
+  // CUSTOM: set nodes and transitions for live export
+  const nodes = useAtomValue(node_list)
+  const transitions = useAtomValue(transition_list)
+  const EditorState = useAtomValue(editor_state)
 
-		SetMobile(Device);
-	}, []);
+  // CUSTOM: live export states and transitions when store changed
+  useEffect(() => {
+    sendExportToParent()
+    console.log("fsm exported data to state table")
+  }, [nodes, transitions])
 
-	useEffect(() => {
-		const handleContextmenu = (e) => {
-			e.preventDefault();
-		};
-		document.addEventListener("contextmenu", handleContextmenu);
-		return function cleanup() {
-			document.removeEventListener("contextmenu", handleContextmenu);
-		};
-	}, []);
+  // CUSTOM: listener for import / clear from parent
+  useEffect(() => {
+    const messageHandler = (event) => {
+      if (event.data?.action === 'import') {
+        importFsmFromParent(event.data.fsm)
+      } else if (event.data?.action === 'clear') {
+        clearFsmFromParent()
+      }
+    }
 
-	// Add KeyBoard Shortcuts
-	function handleKeyPress(event) {
-		handleShortCuts(event.key);
-	}
+    // event listener for messages
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
 
-	useEffect(() => {
-		document.addEventListener("keyup", handleKeyPress);
+  useEffect(() => {
+    const Device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    )
 
-		return () => {
-			document.removeEventListener("keyup", handleKeyPress);
-		};
-	}, [handleKeyPress]);
+    SetMobile(Device)
+  }, [])
 
-	const EditorState = useAtomValue(editor_state);
+  useEffect(() => {
+    const handleContextmenu = (e) => {
+      e.preventDefault()
+    }
+    document.addEventListener('contextmenu', handleContextmenu)
+    return function cleanup() {
+      document.removeEventListener('contextmenu', handleContextmenu)
+    }
+  }, [])
 
-	if (isMobile) {
-		return (
-			<div className="h-screen w-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-gray-700 text-gray-200 p-6 text-center">
-				<p className="text-2xl font-semibold tracking-wide text-gray-100 drop-shadow-[0_0_7px_rgba(255,255,255,0.7)]">
-					FSM Engine is Designed for Desktop/Laptop use only..!
-					<br />
-					Please open this application on a bigger device
-				</p>
-			</div>
-		);
-	}
+  // Add KeyBoard Shortcuts
+  function handleKeyPress(event) {
+    handleShortCuts(event.key)
+  }
 
-  // TODO: live export of data
+  useEffect(() => {
+    document.addEventListener('keyup', handleKeyPress)
 
-	return (
-		<div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
-			<Editor />
+    return () => {
+      document.removeEventListener('keyup', handleKeyPress)
+    }
+  }, [handleKeyPress])
 
-			<Dock />
+  const EditorState = useAtomValue(editor_state)
 
-			<Settings />
+  if (isMobile) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-linear-to-br from-gray-900 via-gray-800 to-gray-700 text-gray-200 p-6 text-center">
+        <p className="text-2xl font-semibold tracking-wide text-gray-100 drop-shadow-[0_0_7px_rgba(255,255,255,0.7)]">
+          FSM Engine is Designed for Desktop/Laptop use only..!
+          <br />
+          Please open this application on a bigger device
+        </p>
+      </div>
+    )
+  }
 
-			<Controls />
+  return (
+    <div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
+      <Editor />
 
-			<Alert />
+      <Dock />
 
-			<Popup />
+      <Settings />
 
-			<TopDock />
+      <Controls />
 
-			<SaveDialog />
+      <Alert />
 
-			<SaveDialog />
+      <Popup />
 
-			<TransitionTable />
+      <TopDock />
 
-			<ConfirmDialog />
-		</div>
-	);
+      <SaveDialog />
+
+      <SaveDialog />
+
+      <TransitionTable />
+
+      <ConfirmDialog />
+    </div>
+  )
 }
