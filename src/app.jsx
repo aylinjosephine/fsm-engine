@@ -78,7 +78,6 @@ export function App() {
     }
   }, [handleKeyPress])
 
-  const EditorState = useAtomValue(editor_state)
 
   if (isMobile) {
     return (
