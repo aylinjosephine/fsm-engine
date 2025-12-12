@@ -29,7 +29,7 @@ export function App() {
   // CUSTOM: live export states and transitions when store changed
   useEffect(() => {
     sendExportToParent()
-    console.log("fsm exported data to state table")
+    console.log('fsm exported data to state table')
   }, [nodes, transitions])
 
   // CUSTOM: listener for import / clear from parent
@@ -43,8 +43,8 @@ export function App() {
     }
 
     // event listener for messages
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
+    window.addEventListener('message', messageHandler)
+    return () => window.removeEventListener('message', messageHandler)
   }, [])
 
   useEffect(() => {
@@ -77,7 +77,6 @@ export function App() {
       document.removeEventListener('keyup', handleKeyPress)
     }
   }, [handleKeyPress])
-
 
   if (isMobile) {
     return (
