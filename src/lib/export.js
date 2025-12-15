@@ -16,7 +16,7 @@ export function extractFsmData() {
     })),
     transitions: transitions.map((t) => ({
       id: t.id,
-      from: t.from,      
+      from: t.from,
       label: t.name,
     })),
   };
@@ -48,7 +48,7 @@ export function importFsmFromParent(fsm) {
       x: baseX + col * dx,
       y: baseY + row * dy,
       radius: 40,
-      fill: "#1f2937", 
+      fill: "#1f2937",
       type: {
         initial: !!s.initial,
         final: !!s.final,
@@ -56,7 +56,7 @@ export function importFsmFromParent(fsm) {
     };
   });
 
-  const transitionAtoms = transitions.map((t, idx) => {
+  const transitionAtoms = transitions.map((t) => {
     return {
       id: t.id,
       from: t.from,
