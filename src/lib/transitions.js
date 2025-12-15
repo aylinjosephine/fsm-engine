@@ -10,7 +10,7 @@ import {
 	alert,
 } from "./stores";
 import { addToHistory } from "./history";
-import { getGraph, getAlphabetsFor } from "./special_functions";
+import { getAlphabetsFor } from "./special_functions";
 
 // Handle a click event on a transition
 export function handleTransitionClick(id) {

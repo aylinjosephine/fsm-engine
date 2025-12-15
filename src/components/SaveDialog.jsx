@@ -31,7 +31,7 @@ const SaveDialog = () => {
 				EditorState === "Save FSM" ? "top-12" : "-top-20 opacity-0"
 			}`}
 		>
-			<div className="h-full w-fit px-2 bg-primary-bg rounded-xl border-1 border-border-bg shadow-[0px_0px_50px_0px_#00000080] flex justify-center items-center gap-3">
+			<div className="h-full w-fit px-2 bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080] flex justify-center items-center gap-3">
 				<select
 					value={saveDetails.type}
 					onChange={(e) =>
