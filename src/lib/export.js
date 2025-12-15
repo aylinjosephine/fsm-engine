@@ -3,6 +3,7 @@ import { node_list, transition_list, store } from './stores'
 
 // const store = getDefaultStore();
 
+// changed default store to store from stores.js since we have a custom store where editor / app.jsx data is saved
 export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const transitions = store.get(transition_list) ?? []
