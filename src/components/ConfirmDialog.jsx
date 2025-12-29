@@ -19,7 +19,7 @@ const ConfirmDialog = () => {
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-			<div className="bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 flex flex-col gap-4">
+			<div className="bg-primary-bg border border-[#333] rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 flex flex-col gap-4">
 				<div className="flex items-center gap-3 text-amber-500">
 					<AlertTriangle size={24} />
 					<h3 className="text-lg font-semibold text-white">

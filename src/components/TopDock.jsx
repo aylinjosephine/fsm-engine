@@ -48,6 +48,7 @@ const TopDock = () => {
 				setIsVisible(false);
 			},
 		},
+    // reuse! 
 		{
 			name: "Auto Layout",
 			icon: <Sparkles stroke={iconFillColor} size={iconSize} />,

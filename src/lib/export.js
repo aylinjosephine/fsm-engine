@@ -19,7 +19,8 @@ export function extractFsmData() {
     transitions: transitions.map((t) => ({
       id: t.id,
       from: t.from,
-      label: t.name,
+      to: t.to,
+      label: t.name || [],
     })),
   }
 }

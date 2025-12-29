@@ -31,6 +31,7 @@ export function exportFsmData() {
 
   // filter valid nodes -> remove undefined/deleted
   const validNodes = nodes.filter(Boolean)
+   const validTransitions = transitions.filter(Boolean)
 
   const fsmData = {
     states: validNodes.map((node) => ({
@@ -41,11 +42,11 @@ export function exportFsmData() {
       radius: node.radius,
       type: node.type, // {initial, intermediate, final}
     })),
-    transitions: transitions.filter(Boolean).map((tr) => ({
+    transitions: validTransitions.map((tr) => ({
       id: tr.id,
       from: tr.from,
       to: tr.to,
-      name: tr.name?.[0] || `tr${tr.id}`,
+      label: tr.name?.[0] || '', // changed from id to this
       points: tr.points,
     })),
   }
