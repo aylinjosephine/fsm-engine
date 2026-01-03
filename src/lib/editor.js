@@ -31,7 +31,7 @@ export function exportFsmData() {
 
   // filter valid nodes -> remove undefined/deleted
   const validNodes = nodes.filter(Boolean)
-   const validTransitions = transitions.filter(Boolean)
+  const validTransitions = transitions.filter(Boolean)
 
   const fsmData = {
     states: validNodes.map((node) => ({
@@ -46,7 +46,7 @@ export function exportFsmData() {
       id: tr.id,
       from: tr.from,
       to: tr.to,
-      label: tr.name?.[0] || '', // changed from id to this
+      label: tr.label?.[0] || '', // user input (moore: x or mealy: x/y)
       points: tr.points,
     })),
   }
@@ -151,13 +151,13 @@ export function HandleStateClick(e, id) {
 
     // Remove all transitions this state has
     store.get(node_list)[id].transitions.forEach((tr) => {
-      const transition = store.get(stage_ref).findOne(`#tr_${tr.tr_name}`)
+      const transition = store.get(stage_ref).findOne(`#tr_${tr.tr_label}`)
       transition.destroy()
 
       // Update the transition List store
       store.set(transition_list, (prev) => {
         const newTrList = [...prev]
-        newTrList[tr.tr_name] = undefined
+        newTrList[tr.tr_label] = undefined
         return newTrList
       })
 
@@ -165,7 +165,7 @@ export function HandleStateClick(e, id) {
       if (tr.from === id && tr.from !== tr.to) {
         const end_node_transitions = store.get(node_list)[tr.to].transitions
         const filtered_transitions = end_node_transitions.filter(
-          (val, _) => val.tr_name !== tr.tr_name,
+          (val, _) => val.tr_label !== tr.tr_label,
         )
         // Update the store
         store.set(node_list, (prev) => {
@@ -182,7 +182,7 @@ export function HandleStateClick(e, id) {
       if (tr.to === id && tr.from !== tr.to) {
         const end_node_transitions = store.get(node_list)[tr.from].transitions
         const filtered_transitions = end_node_transitions.filter(
-          (val, _) => val.tr_name !== tr.tr_name,
+          (val, _) => val.tr_label !== tr.tr_label,
         )
         // Update the store
         store.set(node_list, (prev) => {
@@ -254,7 +254,7 @@ export function HandleStateClick(e, id) {
         const tr = {
           from: start_node,
           to: end_node,
-          tr_name: tr_id,
+          id: tr_id,
         }
         // Update for start node
         newNodes[start_node] = {
@@ -342,16 +342,16 @@ export function HandleStateDrag(e, id) {
   let transition_label
 
   state.transitions.forEach((tr) => {
-    transition = group.findOne(`#transition_${tr.tr_name}`)
-    transition_label = group.findOne(`#tr_label${tr.tr_name}`)
+    transition = group.findOne(`#transition_${tr.id}`)
+    transition_label = group.findOne(`#tr_label${tr.id}`)
 
-    const points = getTransitionPoints(tr.from, tr.to, tr.tr_name)
+    const points = getTransitionPoints(tr.from, tr.to, tr.id)
 
     // Update it in store
     store.set(transition_list, (prev) => {
       const newTrList = [...prev]
-      if (newTrList[tr.tr_name]) {
-        newTrList[tr.tr_name] = { ...newTrList[tr.tr_name], points: points }
+      if (newTrList[tr.id]) {
+        newTrList[tr.id] = { ...newTrList[tr.id], points: points }
       }
       return newTrList
     })
@@ -359,9 +359,7 @@ export function HandleStateDrag(e, id) {
     transition.points(points) // Update it on display
 
     // Update transition Label display
-    transition_label.x(
-      points[2] - 2 * store.get(transition_list)[tr.tr_name].name.toString().length,
-    )
+    transition_label.x(points[2] - 2 * store.get(transition_list)[tr.id].label.toString().length)
     transition_label.y(points[3] - 10)
   })
 }
@@ -416,7 +414,7 @@ function makeCircle(position, id) {
   const y = position.y
 
   const circle = {
-    id: `${id}`,
+    id: id,
     x: x,
     y: y,
     name: `q${id}`,
@@ -427,7 +425,7 @@ function makeCircle(position, id) {
       intermediate: id !== 0,
       final: false,
     },
-    transitions: [], // This will have the object {from: num,to: num,tr_name: number}
+    transitions: [], // This will have the object {from: num,to: num, label: string}
   }
   return circle
 }
@@ -542,10 +540,6 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
 function makeTransition(id, start_node, end_node) {
   const points = getTransitionPoints(start_node, end_node, id)
 
-  // const name = store.get(engine_mode).type === 'Free Style' ? [`tr${id}`] : []
-  // CUSTOM: init buttons with description 0
-  const name = [];
-
   const newTransition = {
     id: id,
     stroke: '#ffffffdd',
@@ -553,11 +547,11 @@ function makeTransition(id, start_node, end_node) {
     fill: '#ffffffdd',
     points: points,
     tension: start_node == end_node ? 1 : 0.5,
-    name: name,
+    label: '0/0', //NEW: init transitions with default label 0/0;
     fontSize: 20,
     fontStyle: 'bold',
-    name_fill: '#ffffff',
-    name_align: 'center',
+    label_fill: '#ffffff',
+    label_align: 'center',
     from: start_node,
     to: end_node,
   }
@@ -731,7 +725,7 @@ export function HandleAutoLayout() {
         trShape.points(points)
 
         if (trLabel) {
-          trLabel.x(points[2] - 2 * tr.name.toString().length)
+          trLabel.x(points[2] - 2 * tr.label.toString().length)
           trLabel.y(points[3] - 10)
         }
       }

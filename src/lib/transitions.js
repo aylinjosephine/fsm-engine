@@ -20,7 +20,7 @@ export function handleTransitionClick(id) {
 
     // Delete the Display arrow
     const transition = store.get(stage_ref).findOne(`#tr_${id}`)
-    transition.destroy()
+    transition?.destroy()
 
     // Remove this transition in store
     store.set(transition_list, (old) => {
@@ -61,25 +61,17 @@ export function handleTransitionClick(id) {
 export function handleTransitionSave(labels) {
   const automata_type = store.get(engine_mode).type
   const active_tr = store.get(active_transition)
-  const src_node = store.get(transition_list)[active_tr].from
+  //const src_node = store.get(transition_list)[active_tr].from
 
-  // new: only allow numerical, binary transition ids
-  const transitionId = store.get(active_transition)
-  if (typeof transitionId !== 'number' || !Number.isInteger(transitionId) || transitionId < 0) {
-    const err_msg = `Transition ID '${transitionId}' muss eine positive Ganzzahl sein!`
-    store.set(show_popup, false)
-    store.set(alert, err_msg)
-    setTimeout(() => store.set(alert, ''), 3500)
-    return
-  }
-
-  const idStr = transitionId.toString()
-  if (!/^[01]+$/.test(idStr)) {
-    const err_msg = `Transition ID '${transitionId}' darf nur 0/1 enthalten (z.B. 0, 1, 10, 11)!`
-    store.set(show_popup, false)
-    store.set(alert, err_msg)
-    setTimeout(() => store.set(alert, ''), 3500)
-    return
+  // label validation: either x or x/y
+  const stringLabels = labels.map((l) => String(l).trim())
+  for (const label of stringLabels) {
+    if (!/^[01]+(?:\/[01]+)?$/.test(label)) {
+      store.set(alert, `"${label}"  invalid, only {0,1}* or {0,1}*/{0,1}* allowed!`)
+      store.set(show_popup, false)
+      setTimeout(() => store.set(alert, ''), 3500)
+      return
+    }
   }
 
   if (automata_type === 'DFA') {
@@ -110,29 +102,34 @@ export function handleTransitionSave(labels) {
       return // dont' add the transition
     }
   }
-  addToHistory()
+
   // Update the New Labels in store
+  addToHistory()
   store.set(show_popup, false)
+
   store.set(transition_list, (old) => {
     const newTrList = [...old]
-    if (newTrList[store.get(active_transition)]) {
-      newTrList[store.get(active_transition)] = {
-        ...newTrList[store.get(active_transition)],
-        name: labels.toSorted(), // Sort them before updating labels
+    if (newTrList[active_tr]) {
+      newTrList[active_tr] = {
+        ...newTrList[active_tr],
+        label: stringLabels[0] ?? '', // Sort them before updating labels
       }
     }
     return newTrList
   })
 
-  // Update the new Labels in UI
-  const displayText = store.get(stage_ref).findOne(`#trtext_${store.get(active_transition)}`)
-  displayText.text(labels.toString())
+  // Update Labels + Position in UI (NEW: not casted to string, because unnecessary, nicer layout with space)
+  const displayText = store.get(stage_ref).findOne(`#trtext_${active_tr}`)
+  const labelShape = store.get(stage_ref).findOne(`#tr_label${active_tr}`)
 
-  // Update Position in UI
-  const label = store.get(stage_ref).findOne(`#tr_label${store.get(active_transition)}`)
+   const labelText = stringLabels[0] ?? '';
 
-  const points = store.get(transition_list)[store.get(active_transition)].points
+  if (displayText) displayText.text(labelText);
+  if (labelShape) {
+    const points = store.get(transition_list)[active_tr].points;
+    labelShape.x(points[2] - 2 * labelText.length);
+    labelShape.y(points[3] - 10);
+  }
 
-  label.x(points[2] - 2 * labels.toString().length)
-  store.set(active_transition, () => null)
+  store.set(active_transition, null);
 }

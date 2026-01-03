@@ -20,7 +20,7 @@ export function extractFsmData() {
       id: t.id,
       from: t.from,
       to: t.to,
-      label: t.name || [],
+      label: String(t.label ?? ''),
     })),
   }
 }
@@ -59,23 +59,21 @@ export function importFsmFromParent(fsm) {
     }
   })
 
-  const transitionAtoms = transitions.map((t) => {
-    return {
-      id: t.id,
-      from: t.from,
-      to: t.to,
-      name: t.label ?? '',
-      stroke: '#ffffff',
-      strokeWidth: 2,
-      fill: '#ffffff',
-      points: [0, 0, 100, 0],
-      tension: 0,
-      fontSize: 16,
-      fontStyle: 'normal',
-      name_fill: '#000000',
-      name_align: 'center',
-    }
-  })
+  const transitionAtoms = transitions.map((t) => ({
+    id: t.id,
+    from: t.from,
+    to: t.to,
+    label: String(t.label ?? ''), 
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    fill: '#ffffff',
+    points: [0, 0, 100, 0],
+    tension: 0,
+    fontSize: 16,
+    fontStyle: 'normal',
+    label_fill: '#000000',
+    label_align: 'center',
+  }))
 
   store.set(node_list, nodeAtoms)
   store.set(transition_list, transitionAtoms)

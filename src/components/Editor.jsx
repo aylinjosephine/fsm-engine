@@ -1,22 +1,13 @@
-import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
-import {
-  Arrow,
-  Circle,
-  Group,
-  Label,
-  Layer,
-  Stage,
-  Tag,
-  Text,
-} from "react-konva";
+import { useAtom, useAtomValue } from 'jotai'
+import { useEffect, useState } from 'react'
+import { Arrow, Circle, Group, Label, Layer, Stage, Tag, Text } from 'react-konva'
 import {
   HandleDragEnd,
   HandleEditorClick,
   HandleScrollWheel,
   HandleStateClick,
   HandleStateDrag,
-} from "../lib/editor";
+} from '../lib/editor'
 import {
   editor_state,
   layer_ref,
@@ -24,35 +15,35 @@ import {
   stage_ref,
   transition_list,
   current_selected,
-} from "../lib/stores";
-import { handleTransitionClick } from "../lib/transitions";
+} from '../lib/stores'
+import { handleTransitionClick } from '../lib/transitions'
 
 const Editor = () => {
   // Jotai Atoms
-  const nodeList = useAtomValue(node_list);
-  const editorState = useAtomValue(editor_state);
-  const [_stageRef, setStageRef] = useAtom(stage_ref);
-  const [transitionList, _setTransitionList] = useAtom(transition_list);
-  const [_layerRef, setLayerRef] = useAtom(layer_ref);
-  const currentSelected = useAtomValue(current_selected);
+  const nodeList = useAtomValue(node_list)
+  const editorState = useAtomValue(editor_state)
+  const [_stageRef, setStageRef] = useAtom(stage_ref)
+  const [transitionList, _setTransitionList] = useAtom(transition_list)
+  const [_layerRef, setLayerRef] = useAtom(layer_ref)
+  const currentSelected = useAtomValue(current_selected)
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
-  });
+  })
 
   useEffect(() => {
     function handleResize() {
       setStageSize({
         width: window.innerWidth,
         height: window.innerHeight,
-      });
+      })
     }
 
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   return (
     <Stage
@@ -75,10 +66,10 @@ const Editor = () => {
                     id={`state_${circle.id}`}
                     x={circle.x}
                     y={circle.y}
-                    draggable={!["Add", "Remove"].includes(editorState)}
+                    draggable={!['Add', 'Remove'].includes(editorState)}
                     onDragEnd={(e) => {
-                      HandleDragEnd(e, circle.id);
-                      HandleStateDrag(e, circle.id);
+                      HandleDragEnd(e, circle.id)
+                      HandleStateDrag(e, circle.id)
                     }}
                     onClick={(e) => HandleStateClick(e, circle.id)}
                   >
@@ -87,7 +78,7 @@ const Editor = () => {
                       y={0}
                       radius={2 * circle.name.length + circle.radius}
                       fill={circle.fill}
-                      stroke={currentSelected === circle.id ? "#3b82f6" : null}
+                      stroke={currentSelected === circle.id ? '#3b82f6' : null}
                       strokeWidth={currentSelected === circle.id ? 4 : 0}
                     />
                     <Text
@@ -111,8 +102,8 @@ const Editor = () => {
                         points={[-circle.radius / 1.5, 0, circle.radius - 5, 0]}
                         pointerLength={10}
                         pointerWidth={10}
-                        fill={"#ffffffdd"}
-                        stroke={"#ffffffdd"}
+                        fill={'#ffffffdd'}
+                        stroke={'#ffffffdd'}
                         strokeWidth={3}
                       />
                     )}
@@ -123,13 +114,13 @@ const Editor = () => {
                         x={0}
                         y={0}
                         radius={2 * circle.name.length + circle.radius + 5}
-                        fill={"transparent"}
+                        fill={'transparent'}
                         strokeWidth={3}
                         stroke={circle.fill}
                       />
                     )}
                   </Group>
-                )
+                ),
             )
           }
 
@@ -150,48 +141,49 @@ const Editor = () => {
                         tension={transition.tension}
                         onClick={() => handleTransitionClick(transition.id)}
                       />
+
                       {/* Add a Label to the middle of the arrow */}
-                      <Label
-                        id={`tr_label${transition.id}`}
-                        x={
-                          transition.points[2] -
-                          2 * transition.name.toString().length
-                        }
-                        y={transition.points[3] - 10}
-                        onClick={() => handleTransitionClick(transition.id)}
-                      >
-                        <Tag
-                          fill="#ffffff50"
-                          opacity={0.8}
-                          cornerRadius={5}
-                          pointerDirection="down"
-                          pointerWidth={10}
-                          pointerHeight={10}
-                          lineJoin="round"
-                        />
-                        <Text
-                          id={`trtext_${transition.id}`}
-                          text={
-                            transition.name.length === 0
-                              ? "0" 
-                              : transition.name.toString()
-                          }
-                          fontSize={transition.fontSize}
-                          fontStyle={transition.fontStyle}
-                          fill={transition.name_fill}
-                          align={transition.name_align}
-                          padding={5}
-                        />
-                      </Label>
+                      {(() => {
+                        const labelText =
+                          transition.label && transition.label.length > 0 ? transition.label : '0'
+
+                        return (
+                          <Label
+                            id={`tr_label${transition.id}`}
+                            x={transition.points[2] - 2 * labelText.length}
+                            y={transition.points[3] - 10}
+                            onClick={() => handleTransitionClick(transition.id)}
+                          >
+                            <Tag
+                              fill="#ffffff50"
+                              opacity={0.8}
+                              cornerRadius={5}
+                              pointerDirection="down"
+                              pointerWidth={10}
+                              pointerHeight={10}
+                              lineJoin="round"
+                            />
+                            <Text
+                              id={`trtext_${transition.id}`}
+                              text={labelText}
+                              fontSize={transition.fontSize}
+                              fontStyle={transition.fontStyle}
+                              fill={transition.label_fill}
+                              align={transition.label_align}
+                              padding={5}
+                            />
+                          </Label>
+                        )
+                      })()}
                     </Group>
-                  )
+                  ),
               )
             }
           </Group>
         </Group>
       </Layer>
     </Stage>
-  );
-};
+  )
+}
 
-export default Editor;
+export default Editor
