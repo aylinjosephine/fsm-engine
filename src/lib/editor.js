@@ -329,7 +329,7 @@ export function HandleStateDrag(e, id) {
 }
 
 export function handleShortCuts(key) {
-  const keyBindings = ['New Project', 'Add', 'Remove', 'Connect', 'Save FSM', 'Guide', 'Set Label']
+  const keyBindings = ['Add', 'Remove', 'Connect']
 
   /*
 	Key Bindings as follows:

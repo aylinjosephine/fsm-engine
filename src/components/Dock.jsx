@@ -52,18 +52,6 @@ const Dock = () => {
       name: 'Connect',
       icon: <Cable stroke={iconFillColor} size={iconSize} />,
     },
-    {
-      name: 'Set Label',
-      icon: <Edit stroke={iconFillColor} size={iconSize} />,
-    },
-    {
-      name: 'Save FSM',
-      icon: <ImageDown stroke={iconFillColor} size={iconSize} />,
-    },
-    {
-      name: 'Guide',
-      icon: <BookHeart stroke={iconFillColor} size={iconSize} />,
-    },
   ]
 
   function default_onclick(item) {

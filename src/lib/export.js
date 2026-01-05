@@ -61,11 +61,11 @@ window.addEventListener('message', (event) => {
       }
     }
 
-    const col = index % 5
-    const row = Math.floor(index / 5)
-    const baseX = 200
-    const baseY = 150
-    const dx = 220
+    const col = index % 6
+    const row = Math.floor(index / 6)
+    const baseX = 150
+    const baseY = 120
+    const dx = 140
     const dy = 160
 
     const name = s.name ?? `q${s.id}`
@@ -113,7 +113,7 @@ window.addEventListener('message', (event) => {
       id: t.id,
       from: t.from,
       to: t.to,
-      label: labelfromParent,
+      label: labelFromParent,
       stroke: '#ffffffdd',
       strokeWidth: 2,
       fill: '#ffffffdd',
@@ -138,4 +138,3 @@ export function clearFsmFromParent() {
   store.set(node_list, [])
   store.set(transition_list, [])
 }
-
