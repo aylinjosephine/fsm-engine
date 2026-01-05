@@ -1,7 +1,6 @@
 // import { getDefaultStore } from 'jotai'
 import { node_list, transition_list, store } from './stores'
-
-// const store = getDefaultStore();
+import { HandleAutoLayout } from './editor'
 
 // changed default store to store from stores.js since we have a custom store where editor / app.jsx data is saved
 export function extractFsmData() {
@@ -30,16 +29,19 @@ export function sendExportToParent() {
   window.parent.postMessage({ action: 'export', fsm }, '*')
 }
 
-export function importFsmFromParent(fsm) {
+// import of state table data as automaton state data
+window.addEventListener('message', (event) => {
+  if (event.data?.action !== 'automatonimport') return
+
+  const fsm = event.data.fsm
   if (!fsm) return
 
-  const states = Array.isArray(fsm.states) ? fsm.states : []
-  const transitions = Array.isArray(fsm.transitions) ? fsm.transitions : []
+  const states = fsm.states ?? []
+  const transitions = fsm.transitions ?? []
 
   const nodeAtoms = states.map((s, index) => {
     const col = index % 5
     const row = Math.floor(index / 5)
-
     const baseX = 200
     const baseY = 150
     const dx = 220
@@ -56,6 +58,7 @@ export function importFsmFromParent(fsm) {
         initial: !!s.initial,
         final: !!s.final,
       },
+      transitions: [],
     }
   })
 
@@ -63,7 +66,7 @@ export function importFsmFromParent(fsm) {
     id: t.id,
     from: t.from,
     to: t.to,
-    label: String(t.label ?? ''), 
+    label: t.label ?? '',
     stroke: '#ffffff',
     strokeWidth: 2,
     fill: '#ffffff',
@@ -77,7 +80,8 @@ export function importFsmFromParent(fsm) {
 
   store.set(node_list, nodeAtoms)
   store.set(transition_list, transitionAtoms)
-}
+  HandleAutoLayout()
+})
 
 export function clearFsmFromParent() {
   store.set(node_list, [])

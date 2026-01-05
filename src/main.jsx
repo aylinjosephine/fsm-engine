@@ -4,6 +4,7 @@ import "./index.css";
 import { Provider } from "jotai";
 import { App } from "./app.jsx";
 import { store } from "./lib/stores.js";
+import "./lib/export"
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Failed to find the root element");
