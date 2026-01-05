@@ -2,6 +2,8 @@
 import { node_list, transition_list, store } from './stores'
 import { HandleAutoLayout } from './editor'
 
+let updateFromState = false
+
 // changed default store to store from stores.js since we have a custom store where editor / app.jsx data is saved
 export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
@@ -25,6 +27,8 @@ export function extractFsmData() {
 }
 
 export function sendExportToParent() {
+if (updateFromState) return
+
   const fsm = extractFsmData()
   window.parent.postMessage({ action: 'export', fsm }, '*')
 }
@@ -77,10 +81,11 @@ window.addEventListener('message', (event) => {
     label_fill: '#000000',
     label_align: 'center',
   }))
-
+  updateFromState = true
   store.set(node_list, nodeAtoms)
   store.set(transition_list, transitionAtoms)
   HandleAutoLayout()
+  updateFromState = false
 })
 
 export function clearFsmFromParent() {

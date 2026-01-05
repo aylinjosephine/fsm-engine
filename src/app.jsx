@@ -28,9 +28,12 @@ export function App() {
 
   // CUSTOM: live export states and transitions when store changed
   useEffect(() => {
-    sendExportToParent()
-    console.log('fsm exported data to state table')
-  }, [nodes, transitions])
+    const timeout = setTimeout(() => {
+      sendExportToParent()
+      console.log('fsm exported data to state table')}, 100)
+
+      return () => clearTimeout(timeout)
+    }, [nodes, transitions])
 
   useEffect(() => {
     const Device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
