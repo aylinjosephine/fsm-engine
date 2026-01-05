@@ -9,7 +9,6 @@ export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const transitions = store.get(transition_list) ?? []
 
-  console.log('exported from export.js:', nodes)
   return {
     states: nodes.map((n) => ({
       id: n.id,
@@ -27,7 +26,7 @@ export function extractFsmData() {
 }
 
 export function sendExportToParent() {
-if (updateFromState) return
+  if (updateFromState) return
 
   const fsm = extractFsmData()
   window.parent.postMessage({ action: 'export', fsm }, '*')
@@ -35,6 +34,7 @@ if (updateFromState) return
 
 // import of state table data as automaton state data
 window.addEventListener('message', (event) => {
+  console.log('automatonimport event arrived in fsm engine')
   if (event.data?.action !== 'automatonimport') return
 
   const fsm = event.data.fsm
@@ -81,11 +81,12 @@ window.addEventListener('message', (event) => {
     label_fill: '#000000',
     label_align: 'center',
   }))
+
   updateFromState = true
   store.set(node_list, nodeAtoms)
   store.set(transition_list, transitionAtoms)
   HandleAutoLayout()
-  updateFromState = false
+  setTimeout(() => { updateFromState = false }, 0)
 })
 
 export function clearFsmFromParent() {

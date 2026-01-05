@@ -24,42 +24,6 @@ import { addToHistory, undo, redo, clearHistory } from './history'
 import dagre from 'dagre'
 import Konva from 'konva'
 
-// NEW export function
-export function exportFsmData() {
-  const nodes = store.get(node_list)
-  const transitions = store.get(transition_list)
-
-  // filter valid nodes -> remove undefined/deleted
-  const validNodes = nodes.filter(Boolean)
-  const validTransitions = transitions.filter(Boolean)
-
-  const fsmData = {
-    states: validNodes.map((node) => ({
-      id: parseInt(node.id),
-      name: node.name,
-      x: node.x,
-      y: node.y,
-      radius: node.radius,
-      type: node.type, // {initial, intermediate, final}
-    })),
-    transitions: validTransitions.map((tr) => ({
-      id: tr.id,
-      from: tr.from,
-      to: tr.to,
-      label: tr.label?.[0] || '', // user input (moore: x or mealy: x/y)
-      points: tr.points,
-    })),
-  }
-
-  window.dispatchEvent(
-    new CustomEvent('fsm-export', {
-      detail: fsmData,
-    }),
-  )
-
-  console.log('FSM exported to Vue:', fsmData)
-}
-
 // Handler function that is called when the editor is clicked
 export function HandleEditorClick(e) {
   const group = e.target.getStage().findOne('Layer')
