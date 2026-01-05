@@ -12,6 +12,34 @@ import {
 import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
 
+// compute x / y bit number
+export function getEditorBitLengths() {
+  const transitions = store.get(transition_list) ?? []
+
+  let maxInput = 1
+  let maxOutput = 1
+
+  for (const t of transitions) {
+    if (!t) continue
+    const label = String(t.label ?? '')
+    const [inp = '', out = ''] = label.split('/')
+    maxInput = Math.max(maxInput, inp.length || 1)
+    maxOutput = Math.max(maxOutput, out.length || 1)
+  }
+
+  return { maxInput, maxOutput }
+}
+
+function padLabelToBitLengths(label, maxInput, maxOutput) {
+  const [inpRaw = '', outRaw = ''] = label.split('/')
+
+  const inp = inpRaw.padEnd(maxInput, 'x')
+  const out = outRaw.padEnd(maxOutput, 'x')
+
+  return `${inp}/${out}`
+}
+
+
 // Handle a click event on a transition
 export function handleTransitionClick(id) {
   if (store.get(editor_state) === 'Remove') {
@@ -66,8 +94,8 @@ export function handleTransitionSave(labels) {
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim())
   for (const label of stringLabels) {
-    if (!/^[01]+(?:\/[01]+)?$/.test(label)) {
-      store.set(alert, `"${label}"  invalid, only {0,1}* or {0,1}*/{0,1}* allowed!`)
+    if (!/^[01x]+(?:\/[01x]+)?$/.test(label)) {
+      store.set(alert, `"${label}" invalid, only {0,1,x}* or {0,1,x}*/{0,1,x}* allowed!`)
       store.set(show_popup, false)
       setTimeout(() => store.set(alert, ''), 3500)
       return
@@ -118,18 +146,32 @@ export function handleTransitionSave(labels) {
     return newTrList
   })
 
-  // Update Labels + Position in UI (NEW: not casted to string, because unnecessary, nicer layout with space)
+  // Update labels + position in UI (NEW: not casted to string, because unnecessary, nicer layout with space)
   const displayText = store.get(stage_ref).findOne(`#trtext_${active_tr}`)
   const labelShape = store.get(stage_ref).findOne(`#tr_label${active_tr}`)
 
-   const labelText = stringLabels[0] ?? '';
+  const labelText = stringLabels[0] ?? ''
 
-  if (displayText) displayText.text(labelText);
+  if (displayText) displayText.text(labelText)
   if (labelShape) {
-    const points = store.get(transition_list)[active_tr].points;
-    labelShape.x(points[2] - 2 * labelText.length);
-    labelShape.y(points[3] - 10);
+    const points = store.get(transition_list)[active_tr].points
+    labelShape.x(points[2] - 2 * labelText.length)
+    labelShape.y(points[3] - 10)
   }
 
-  store.set(active_transition, null);
+   const { maxInput, maxOutput } = getEditorBitLengths()
+
+store.set(transition_list, (old) => {
+  return old.map((t) => {
+    if (!t) return t
+    const rawLabel = String(t.label ?? '')
+    return {
+      ...t,
+      label: padLabelToBitLengths(rawLabel, maxInput, maxOutput),
+    }
+  })
+})
+
+store.set(active_transition, null)
+
 }

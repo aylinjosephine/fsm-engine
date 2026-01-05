@@ -91,7 +91,7 @@ window.addEventListener('message', (event) => {
   const transitionAtoms = transitions.map((t) => {
     const existing = existingTransitions.find((tr) => tr && tr.id === t.id)
 
-    // use x/y as label (TODO: moore) or default
+    // NEW: use x/y as label (TODO: moore) or default
     const labelFromParent =
       typeof t.input === 'string' && typeof t.output === 'string'
         ? `${t.input}/${t.output}`
@@ -113,7 +113,7 @@ window.addEventListener('message', (event) => {
       id: t.id,
       from: t.from,
       to: t.to,
-      label: t.label ?? '0/x',
+      label: labelfromParent,
       stroke: '#ffffffdd',
       strokeWidth: 2,
       fill: '#ffffffdd',
@@ -138,3 +138,4 @@ export function clearFsmFromParent() {
   store.set(node_list, [])
   store.set(transition_list, [])
 }
+
