@@ -511,7 +511,7 @@ function makeTransition(id, start_node, end_node) {
     fill: '#ffffffdd',
     points: points,
     tension: start_node == end_node ? 1 : 0.5,
-    label: '0/0', //NEW: init transitions with default label 0/0;
+    label: '0/x', //NEW: init transitions with default label 0/0;
     fontSize: 20,
     fontStyle: 'bold',
     label_fill: '#ffffff',
