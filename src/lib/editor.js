@@ -168,6 +168,7 @@ export function HandleStateClick(e, id) {
     })
 
     addToHistory()
+    sendExportToParent()
     return
   }
 
@@ -398,6 +399,14 @@ function makeCircle(position, id) {
 // state transition arrow between states id1 and id2
 // Optional: nodesMap can be passed to use custom node positions (for animations)
 export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
+  const nodes = nodesMap || store.get(node_list)
+  const startNode = nodes[id1]
+  const clickedGroup = nodes[id2]
+
+  if (!startNode || !clickedGroup) {
+    return [0, 0, 100, 0]
+  }
+
   // Get all transitions between these two nodes
   const allTransitions = store
     .get(transition_list)
@@ -412,10 +421,6 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
 
   // If this is a new transition being created (not in list yet), it will be the last one
   const effectiveIndex = index === -1 ? count : index
-
-  const nodes = nodesMap || store.get(node_list)
-  const startNode = nodes[id1]
-  const clickedGroup = nodes[id2] // endNode
 
   if (id1 == id2) {
     // Self-loop

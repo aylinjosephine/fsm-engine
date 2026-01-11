@@ -79,6 +79,7 @@ export function handleTransitionClick(id) {
       return newNodes
     })
     addToHistory()
+    sendExportToParent()
     return
   }
   store.set(show_popup, true)

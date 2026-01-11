@@ -88,43 +88,48 @@ window.addEventListener('message', (event) => {
 
   const existingTransitions = store.get(transition_list) ?? []
 
-  const transitionAtoms = transitions.map((t) => {
-    const existing = existingTransitions.find((tr) => tr && tr.id === t.id)
+  // only transitions with all data
+  const transitionAtoms = transitions
+    .filter((t) => {
+      const fromExists = nodeAtoms.some((n) => n && n.id === t.from)
+      const toExists = nodeAtoms.some((n) => n && n.id === t.to)
+      return fromExists && toExists
+    })
+    .map((t) => {
+      const existing = existingTransitions.find((tr) => tr && tr.id === t.id)
 
-    // NEW: use x/y as label (TODO: moore) or default
-    const labelFromParent =
-      typeof t.input === 'string' && typeof t.output === 'string'
-        ? `${t.input}/${t.output}`
-        : (t.label ?? existing?.label ?? '0/0')
+      const labelFromParent =
+        typeof t.input === 'string' && typeof t.output === 'string'
+          ? `${t.input}/${t.output}`
+          : (t.label ?? existing?.label ?? '0/0')
 
-    if (existing) {
+      if (existing) {
+        return {
+          ...existing,
+          label: labelFromParent,
+          from: t.from,
+          to: t.to,
+        }
+      }
+
+      const points = getTransitionPoints(t.from, t.to, t.id)
+
       return {
-        ...existing,
-        label: labelFromParent,
+        id: t.id,
         from: t.from,
         to: t.to,
+        label: labelFromParent,
+        stroke: '#ffffffdd',
+        strokeWidth: 2,
+        fill: '#ffffffdd',
+        points,
+        tension: t.from === t.to ? 1 : 0.5,
+        fontSize: 20,
+        fontStyle: 'bold',
+        label_fill: '#ffffff',
+        label_align: 'center',
       }
-    }
-
-    // get coordinates only for new transition
-    const points = getTransitionPoints(t.from, t.to, t.id)
-
-    return {
-      id: t.id,
-      from: t.from,
-      to: t.to,
-      label: labelFromParent,
-      stroke: '#ffffffdd',
-      strokeWidth: 2,
-      fill: '#ffffffdd',
-      points,
-      tension: t.from === t.to ? 1 : 0.5,
-      fontSize: 20,
-      fontStyle: 'bold',
-      label_fill: '#ffffff',
-      label_align: 'center',
-    }
-  })
+    })
 
   updateFromState = true
   store.set(node_list, nodeAtoms)
