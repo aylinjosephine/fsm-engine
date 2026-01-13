@@ -10,7 +10,7 @@ import {
   current_selected,
   deleted_nodes,
   editor_state,
-  engine_mode,
+  automaton_type,
   initial_state,
   node_list,
   show_popup,
@@ -168,7 +168,7 @@ export function HandleStateClick(e, id) {
     })
 
     addToHistory()
-    sendExportToParent()
+    sendExportToMainState()
     return
   }
 
@@ -241,7 +241,7 @@ export function HandleStateClick(e, id) {
       addToHistory()
 
       // Open Popup for labeling
-      if (store.get(engine_mode).type !== 'Free Style') {
+      if (store.get(automaton_type) !== 'Free Style') {
         store.set(active_transition, () => tr_id)
         store.set(show_popup, true)
       }
@@ -390,6 +390,7 @@ function makeCircle(position, id) {
       intermediate: id !== 0,
       final: false,
     },
+    moore_output: '',
     transitions: [], // This will have the object {from: num,to: num, label: string}
   }
   return circle
@@ -508,15 +509,17 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
 
 function makeTransition(id, start_node, end_node) {
   const points = getTransitionPoints(start_node, end_node, id)
+  const type = store.get(automaton_type) ?? 'mealy'
+  const defaultLabel = type === 'mealy' ? '0/x' : '0'
 
   const newTransition = {
-    id: id,
+    id,
     stroke: '#ffffffdd',
     strokeWidth: 2,
     fill: '#ffffffdd',
-    points: points,
+    points,
     tension: start_node == end_node ? 1 : 0.5,
-    label: '0/x', //NEW: init transitions with default label 0/0;
+    label: defaultLabel,
     fontSize: 20,
     fontStyle: 'bold',
     label_fill: '#ffffff',

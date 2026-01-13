@@ -15,6 +15,7 @@ import {
   stage_ref,
   transition_list,
   current_selected,
+  automaton_type,
 } from '../lib/stores'
 import { handleTransitionClick } from '../lib/transitions'
 
@@ -26,6 +27,7 @@ const Editor = () => {
   const [transitionList, _setTransitionList] = useAtom(transition_list)
   const [_layerRef, setLayerRef] = useAtom(layer_ref)
   const currentSelected = useAtomValue(current_selected)
+  const automatonType = useAtomValue(automaton_type)
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -92,6 +94,20 @@ const Editor = () => {
                       fill="#ffffff"
                       align="center"
                     />
+                    {/* if automaton is moore, show output on node*/}
+                    {automaton_type === 'moore' && (
+                      <Text
+                        x={-circle.radius - circle.moore_output.length / 2}
+                        y={0}
+                        width={2 * circle.radius + circle.moore_output.length}
+                        height={circle.radius}
+                        text={circle.moore_output}
+                        fontSize={18}
+                        fontStyle="bold"
+                        fill="#ffffff"
+                        align="center"
+                        />
+                    )}
 
                     {/* If state is initial, draw an incoming arrow */}
                     {circle.type.initial && (

@@ -1,5 +1,5 @@
 // import { getDefaultStore } from 'jotai'
-import { node_list, transition_list, store } from './stores'
+import { node_list, transition_list, automaton_type, store } from './stores'
 import { getTransitionPoints } from './editor'
 
 let updateFromState = false
@@ -8,6 +8,7 @@ let updateFromState = false
 export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const transitions = store.get(transition_list) ?? []
+  const automatonType = store.get(automaton_type) ?? 'mealy'
 
   return {
     states: nodes.map((n) => ({
@@ -15,21 +16,28 @@ export function extractFsmData() {
       name: n.name,
       initial: !!n.type?.initial,
       final: !!n.type?.final,
+      moore_output: n.moore_output ?? '',
     })),
-    transitions: transitions.map((t) => ({
-      id: t.id,
-      from: t.from,
-      to: t.to,
-      label: String(t.label ?? ''),
-    })),
+    transitions: transitions.map((t) => {
+      const label = String(t.label ?? '')
+      const [input = '', out = ''] = label.split('/')
+      return {
+        id: t.id,
+        from: t.from,
+        to: t.to,
+        input,
+        mealy_output: out,
+      }
+    }),
+    automatonType,
   }
 }
 
-export function sendExportToParent() {
+export function sendExportToMainState() {
   if (updateFromState) return
 
   const fsm = extractFsmData()
-  window.parent.postMessage({ action: 'export', fsm }, '*')
+  window.parent.postMessage({ action: 'editorToTableExport', fsm }, '*')
 }
 
 // import of state table data as automaton state data
@@ -43,16 +51,20 @@ window.addEventListener('message', (event) => {
 
   const states = fsm.states ?? []
   const transitions = fsm.transitions ?? []
+  const { automatonType = 'mealy' } = fsm
 
   const existingNodes = store.get(node_list) ?? []
 
   const nodeAtoms = states.map((s, index) => {
     const existing = existingNodes.find((n) => n && n.id === s.id)
+    const moore_output = s.moore_output ?? existing?.moore_output ?? ''
+
     if (existing) {
       // auto layout only on new states
       return {
         ...existing,
         name: s.name ?? existing.name,
+        moore_output,
         type: {
           ...existing.type,
           initial: !!s.initial,
@@ -77,6 +89,7 @@ window.addEventListener('message', (event) => {
       y: baseY + row * dy,
       radius: name.length + 35,
       fill: '#ffffff80',
+      moore_output,
       type: {
         initial: !!s.initial,
         intermediate: !s.initial,
@@ -99,8 +112,8 @@ window.addEventListener('message', (event) => {
       const existing = existingTransitions.find((tr) => tr && tr.id === t.id)
 
       const labelFromParent =
-        typeof t.input === 'string' && typeof t.output === 'string'
-          ? `${t.input}/${t.output}`
+        typeof t.input === 'string' && typeof t.mealy_output === 'string'
+          ? `${t.input}/${t.mealy_output}`
           : (t.label ?? existing?.label ?? '0/0')
 
       if (existing) {
@@ -134,6 +147,7 @@ window.addEventListener('message', (event) => {
   updateFromState = true
   store.set(node_list, nodeAtoms)
   store.set(transition_list, transitionAtoms)
+  store.set(automaton_type, automatonType)
   setTimeout(() => {
     updateFromState = false
   }, 0)

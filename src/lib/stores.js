@@ -13,22 +13,26 @@ export const layer_ref = atom(null)
 
 // Global Store to keep track of States
 export const node_list = atom([])
-// A single item of NodeList has the following type
+// NEW: A single item of node_list has the following shape:
 /*
 {
-id: number,
-stroke: string (color),
-strokeWidth: number,
-fill: string,
-points: points,
-tension: start_node == end_node ? 1 : 0.5,
-name: name,
-fontSize: number,
-fontStyle: "bold",
-name_fill: string (hex color),
-name_align: "center",
-from: start_node,
-to: end_node,
+  id: number,
+  x: number,
+  y: number,
+  name: string,
+  radius: number,
+  fill: string,
+  type: {
+    initial: boolean,
+    intermediate: boolean,
+    final: boolean,
+  },
+  moore_output: string, // Moore output for this state (used if automaton_type === 'moore')
+  transitions: Array<{
+    from: number,
+    to: number,
+    id: number,
+  }>,
 }
 */
 
@@ -53,11 +57,9 @@ export const initial_state = atom(null)
 // Keep track of the two states that are clicked on when in Connect Mode
 export const transition_pairs = atom(null)
 
-// Store to keep track of current FSM Mode
-export const engine_mode = atom({
-  type: 'Free Style',
-  alphabets: [],
-})
+// NEW: Keep track of Automaton Type which has been set in project
+// AutomatonType = 'mealy' | 'moore'
+export const automaton_type = atom<'mealy' | 'moore'>('mealy')
 
 // Alert Message
 export const alert = atom('')

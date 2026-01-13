@@ -11,6 +11,7 @@ import {
 } from './stores'
 import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
+import { sendExportToMainState } from './export'
 
 // compute x / y bit number
 export function getEditorBitLengths() {
@@ -79,7 +80,7 @@ export function handleTransitionClick(id) {
       return newNodes
     })
     addToHistory()
-    sendExportToParent()
+    sendExportToMainState()
     return
   }
   store.set(show_popup, true)
@@ -90,7 +91,7 @@ export function handleTransitionClick(id) {
 export function handleTransitionSave(labels) {
   const automata_type = store.get(engine_mode).type
   const active_tr = store.get(active_transition)
-  //const src_node = store.get(transition_list)[active_tr].from
+  const src_node = store.get(transition_list)[active_tr].from
 
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim())
