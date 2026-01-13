@@ -59,14 +59,14 @@ export const transition_pairs = atom(null)
 
 // NEW: Keep track of Automaton Type which has been set in project
 // AutomatonType = 'mealy' | 'moore'
-export const automaton_type = atom<'mealy' | 'moore'>('mealy')
+export const automaton_type = atom('mealy')
 
 // Alert Message
 export const alert = atom('')
 
-// Unused
+// Store to keep track of current FSM Mode
 export const engine_mode = atom({
-  type: 'NFA',     
+  type: 'Free Style',
   alphabets: [],
 })
 

@@ -10,6 +10,7 @@ import {
   current_selected,
   deleted_nodes,
   editor_state,
+  engine_mode,
   automaton_type,
   initial_state,
   node_list,

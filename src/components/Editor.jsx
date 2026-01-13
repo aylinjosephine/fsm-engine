@@ -95,7 +95,7 @@ const Editor = () => {
                       align="center"
                     />
                     {/* if automaton is moore, show output on node*/}
-                    {automaton_type === 'moore' && (
+                    {automatonType === 'moore' && (
                       <Text
                         x={-circle.radius - circle.moore_output.length / 2}
                         y={0}
@@ -106,7 +106,7 @@ const Editor = () => {
                         fontStyle="bold"
                         fill="#ffffff"
                         align="center"
-                        />
+                      />
                     )}
 
                     {/* If state is initial, draw an incoming arrow */}
