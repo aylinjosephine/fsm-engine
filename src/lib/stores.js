@@ -64,6 +64,12 @@ export const automaton_type = atom<'mealy' | 'moore'>('mealy')
 // Alert Message
 export const alert = atom('')
 
+// Unused
+export const engine_mode = atom({
+  type: 'NFA',     
+  alphabets: [],
+})
+
 // Show Popup
 export const show_popup = atom(false)
 export const active_transition = atom(null)

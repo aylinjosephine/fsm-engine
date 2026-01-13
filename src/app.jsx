@@ -14,7 +14,7 @@ import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
 import { editor_state, node_list, transition_list } from './lib/stores'
 import { useState } from 'react'
-import { sendExportToParent } from './lib/export.js'
+import { sendExportToMainState } from './lib/export.js'
 
 export function App() {
   // Disable right click context menu
@@ -29,7 +29,7 @@ export function App() {
   // CUSTOM: live export states and transitions when store changed
   useEffect(() => {
     const timeout = setTimeout(() => {
-      sendExportToParent()
+      sendExportToMainState()
       console.log('fsm exported data to state table')}, 100)
 
       return () => clearTimeout(timeout)
