@@ -216,12 +216,17 @@ function normalizeTransitionForParent(transition) {
   const [inputFromLabel = '', outputFromLabel = ''] = label.split('/')
   const input = String(transition?.input ?? inputFromLabel ?? '')
   const output = String(transition?.output ?? transition?.mealy_output ?? outputFromLabel ?? '')
+  const nodes = (store.get(node_list) ?? []).filter(Boolean)
+  const maxIndex = Math.max(nodes.length - 1, 0)
+  const stateBits = Math.max(maxIndex.toString(2).length, 1)
+  const shouldBeUnresolved =
+    !!transition?.forceUnresolved || !/^[01x]+\/[01x]+$/.test(String(label).trim())
 
   return {
     id: transition?.id ?? 0,
     from: transition?.from ?? 0,
-    to: transition?.to ?? -1,
-    toPattern: transition?.toPattern,
+    to: shouldBeUnresolved ? -1 : (transition?.to ?? -1),
+    toPattern: shouldBeUnresolved ? 'x'.repeat(stateBits) : transition?.toPattern,
     input,
     output,
     mealy_output: output,

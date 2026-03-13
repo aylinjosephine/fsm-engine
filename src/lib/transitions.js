@@ -78,6 +78,62 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
   return `${inp}/${out}`
 }
 
+function isValidBits(value) {
+  return /^[01x]+$/.test(String(value ?? '').trim())
+}
+
+function getStateBits() {
+  const nodes = (store.get(node_list) ?? []).filter(Boolean)
+  const maxIndex = Math.max(nodes.length - 1, 0)
+  return Math.max(maxIndex.toString(2).length, 1)
+}
+
+export function handleInvalidTransitionFallback(inputValue, outputValue) {
+  const active_tr = store.get(active_transition)
+  const activeTransition = store.get(transition_list)[active_tr]
+  if (!activeTransition) return
+
+  // New transition with invalid initialization: drop it completely.
+  if (activeTransition.isDraft) {
+    removeTransitionById(active_tr)
+    store.set(show_popup, false)
+    store.set(active_transition, null)
+    store.set(alert, 'Transition invalid: draft transition was removed.')
+    setTimeout(() => store.set(alert, ''), 2500)
+    sendExportToMainState()
+    return
+  }
+
+  const { maxInput, maxOutput } = getEditorBitLengths()
+  const input = isValidBits(inputValue) ? String(inputValue).trim() : 'x'.repeat(maxInput)
+  const output = isValidBits(outputValue) ? String(outputValue).trim() : 'x'.repeat(maxOutput)
+  const paddedLabel = padLabelToBitLengths(`${input}/${output}`, maxInput, maxOutput)
+  const unresolvedPattern = 'x'.repeat(getStateBits())
+
+  addToHistory()
+  store.set(show_popup, false)
+
+  store.set(transition_list, (old) => {
+    const next = [...old]
+    if (next[active_tr]) {
+      next[active_tr] = {
+        ...next[active_tr],
+        label: paddedLabel,
+        isDraft: false,
+        to: -1,
+        toPattern: unresolvedPattern,
+        forceUnresolved: true,
+      }
+    }
+    return next
+  })
+
+  store.set(alert, 'Transition invalid: stored as unresolved (next state = x...x).')
+  setTimeout(() => store.set(alert, ''), 2500)
+  store.set(active_transition, null)
+  sendExportToMainState()
+}
+
 // Handle a click event on a transition
 export function handleTransitionClick(id) {
   if (store.get(editor_state) === 'Remove') {
@@ -101,8 +157,8 @@ export function handleTransitionSave(labels) {
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim())
   for (const label of stringLabels) {
-    if (!/^[01x]+(?:\/[01x]+)?$/.test(label)) {
-      store.set(alert, `"${label}" invalid, only {0,1,x}* or {0,1,x}*/{0,1,x}* allowed!`)
+    if (!/^[01x]+\/[01x]+$/.test(label)) {
+      store.set(alert, `"${label}" invalid, only format input/output with {0,1,x} allowed!`)
       store.set(show_popup, false)
       setTimeout(() => store.set(alert, ''), 3500)
       return

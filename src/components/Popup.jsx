@@ -2,7 +2,11 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { active_transition, engine_mode, show_popup, transition_list, store } from '../lib/stores'
-import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
+import {
+  handleTransitionSave,
+  handleInvalidTransitionFallback,
+  removeTransitionById,
+} from '../lib/transitions'
 
 const Popup = () => {
   const showPopup = useAtomValue(show_popup)
@@ -106,11 +110,19 @@ function ChooseTransitionLabelDFA() {
 function ChooseTransitionLabelFreeStyle() {
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
-  const [label, setLabel] = useState('')
+  const [inputValue, setInputValue] = useState('')
+  const [outputValue, setOutputValue] = useState('')
+
+  function isValidBits(value) {
+    return /^[01x]+$/.test(value)
+  }
 
   useEffect(() => {
     const currentTransition = TransitionList[ActiveTransition]
-    setLabel(currentTransition?.isDraft ? '' : (currentTransition?.label ?? ''))
+    const rawLabel = currentTransition?.isDraft ? '' : (currentTransition?.label ?? '')
+    const [input = '', output = ''] = String(rawLabel).split('/')
+    setInputValue(input)
+    setOutputValue(output)
   }, [ActiveTransition, TransitionList])
 
   function handleCancel() {
@@ -119,21 +131,30 @@ function ChooseTransitionLabelFreeStyle() {
     }
     store.set(show_popup, false)
     store.set(active_transition, null)
-    setLabel('')
+    setInputValue('')
+    setOutputValue('')
   }
 
   return (
     <>
-      <p className="text-sm font-github text-center text-white mb-5 select-none">
-        Set Label for this transition
-      </p>
-      <span className="w-full">
+      <span className="w-full mb-2">
+        <p className="font-github text-white text-xs pb-1">input=</p>
         <input
-          value={label}
+          value={inputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Enter Transition Label..."
+          onChange={(e) => setInputValue(e.target.value.trim())}
+          placeholder=""
+        />
+      </span>
+      <span className="w-full">
+        <p className="font-github text-white text-xs pb-1">output=</p>
+        <input
+          value={outputValue}
+          className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+          type="text"
+          onChange={(e) => setOutputValue(e.target.value.trim())}
+          placeholder=""
         />
       </span>
       <div className="flex gap-3 mt-5">
@@ -148,10 +169,20 @@ function ChooseTransitionLabelFreeStyle() {
         <button
           type="button"
           onClick={() => {
-            if (label.trim().length > 0) {
-              handleTransitionSave([label])
-              setLabel('')
+            const input = inputValue.trim()
+            const output = outputValue.trim()
+            const valid = isValidBits(input) && isValidBits(output)
+
+            if (!valid) {
+              handleInvalidTransitionFallback(input, output)
+              setInputValue('')
+              setOutputValue('')
+              return
             }
+
+            handleTransitionSave([`${input}/${output}`])
+            setInputValue('')
+            setOutputValue('')
           }}
           className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
         >
