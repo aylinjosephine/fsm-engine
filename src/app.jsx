@@ -12,35 +12,22 @@ import TopDock from './components/TopDock'
 import TransitionTable from './components/TransitionTable'
 import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
-import { editor_state, node_list, transition_list } from './lib/stores'
-import { useState } from 'react'
+import { node_list, transition_list } from './lib/stores'
 import { sendExportToMainState } from './lib/export.js'
 
 export function App() {
-  // Disable right click context menu
-  // Got this useEffect code from StackOverflow
-  const [isMobile, SetMobile] = useState(false)
-
   // CUSTOM: set nodes and transitions for live export
   const nodes = useAtomValue(node_list)
   const transitions = useAtomValue(transition_list)
-  const EditorState = useAtomValue(editor_state)
 
   // CUSTOM: live export states and transitions when store changed
   useEffect(() => {
     const timeout = setTimeout(() => {
       sendExportToMainState()
-      console.log('fsm exported data to state table')}, 100)
+    }, 100)
 
-      return () => clearTimeout(timeout)
-    }, [nodes, transitions])
-
-  useEffect(() => {
-    const Device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    )
-    SetMobile(Device)
-  }, [])
+    return () => clearTimeout(timeout)
+  }, [nodes, transitions])
 
   useEffect(() => {
     const handleContextmenu = (e) => {
@@ -52,18 +39,17 @@ export function App() {
     }
   }, [])
 
-  // Add KeyBoard Shortcuts
-  function handleKeyPress(event) {
-    handleShortCuts(event.key)
-  }
-
   useEffect(() => {
+    const handleKeyPress = (event) => {
+      handleShortCuts(event.key)
+    }
+
     document.addEventListener('keyup', handleKeyPress)
 
     return () => {
       document.removeEventListener('keyup', handleKeyPress)
     }
-  }, [handleKeyPress])
+  }, [])
 
   return (
     <div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
@@ -80,8 +66,6 @@ export function App() {
       <Popup />
 
       <TopDock />
-
-      <SaveDialog />
 
       <SaveDialog />
 

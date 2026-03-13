@@ -22,6 +22,7 @@ import {
   confirm_dialog_atom,
 } from './stores'
 import { addToHistory, undo, redo, clearHistory } from './history'
+import { sendExportToMainState } from './export'
 import dagre from 'dagre'
 import Konva from 'konva'
 
@@ -97,79 +98,7 @@ export function HandleStateClick(e, id) {
   const clickedNode = store.get(stage_ref).findOne(`#state_${id}`)
 
   if (store.get(editor_state) === 'Remove') {
-    // BugFix #49 - If the state is selected, deselect it before deleting
-    if (id === store.get(current_selected)) store.set(current_selected, () => null)
-
-    clickedNode.destroy() // Remove it from the editor
-
-    // Add the deleted Node to list of delete nodes
-    store.set(deleted_nodes, (prev) => {
-      prev.push(id)
-      prev.sort()
-      return prev
-    })
-
-    // If the node was a initial node set the initial_node to null
-    if (store.get(initial_state) === id) {
-      store.set(initial_state, (_) => null)
-    }
-
-    // Remove all transitions this state has
-    store.get(node_list)[id].transitions.forEach((tr) => {
-      const transition = store.get(stage_ref).findOne(`#tr_${tr.tr_label}`)
-      transition.destroy()
-
-      // Update the transition List store
-      store.set(transition_list, (prev) => {
-        const newTrList = [...prev]
-        newTrList[tr.tr_label] = undefined
-        return newTrList
-      })
-
-      // Also delete the entry of this transition in in the second node involved
-      if (tr.from === id && tr.from !== tr.to) {
-        const end_node_transitions = store.get(node_list)[tr.to].transitions
-        const filtered_transitions = end_node_transitions.filter(
-          (val, _) => val.tr_label !== tr.tr_label,
-        )
-        // Update the store
-        store.set(node_list, (prev) => {
-          const newNodes = [...prev]
-          newNodes[tr.to] = {
-            ...newNodes[tr.to],
-            transitions: filtered_transitions,
-          }
-          return newNodes
-        })
-      }
-
-      // Other Case
-      if (tr.to === id && tr.from !== tr.to) {
-        const end_node_transitions = store.get(node_list)[tr.from].transitions
-        const filtered_transitions = end_node_transitions.filter(
-          (val, _) => val.tr_label !== tr.tr_label,
-        )
-        // Update the store
-        store.set(node_list, (prev) => {
-          const newNodes = [...prev]
-          newNodes[tr.from] = {
-            ...newNodes[tr.from],
-            transitions: filtered_transitions,
-          }
-          return newNodes
-        })
-      }
-    })
-
-    // Remove State from the node_list store
-    store.set(node_list, (prev) => {
-      const newNodes = [...prev]
-      newNodes[id] = undefined
-      return newNodes
-    })
-
-    addToHistory()
-    sendExportToMainState()
+    removeState(id, clickedNode)
     return
   }
 
@@ -183,32 +112,17 @@ export function HandleStateClick(e, id) {
       // Get the two states for drawing a transitions
       const start_node = store.get(transition_pairs)
       const end_node = id
-
-      // Check if this transition already exists
-      for (let i = 0; i < store.get(transition_list).length; i++) {
-        if (!store.get(transition_list)[i]) continue // Skip if transition List had any undefined elements
-
-        if (
-          store.get(transition_list)[i].from === start_node &&
-          store.get(transition_list)[i].to === id
-        ) {
-          store.set(alert, 'This Transition Already Exists!')
-          setTimeout(() => {
-            store.set(alert, '')
-          }, 3000)
-          store.set(transition_pairs, () => null)
-          store.set(current_selected, null) // Clear highlight if failed
-          return
-        }
-      }
-
-      const tr_id = store.get(transition_list).length
+      const tr_id = getNextTransitionId()
 
       // Define a new Transition
       const newTransition = makeTransition(tr_id, start_node, end_node)
 
       // Update the transition_list store
-      store.set(transition_list, (prev) => [...prev, newTransition])
+      store.set(transition_list, (prev) => {
+        const nextTransitions = [...prev]
+        nextTransitions[tr_id] = newTransition
+        return nextTransitions
+      })
 
       // Reset the transition_pairs store
       store.set(transition_pairs, (_) => null)
@@ -397,10 +311,90 @@ function makeCircle(position, id) {
   return circle
 }
 
+function removeState(id, clickedNode) {
+  const nodes = store.get(node_list) ?? []
+  const transitions = store.get(transition_list) ?? []
+  const state = nodes[id]
+
+  if (!state) return
+
+  if (id === store.get(current_selected)) store.set(current_selected, () => null)
+
+  clickedNode?.destroy()
+
+  const connectedTransitionIds = new Set(
+    transitions
+      .filter((transition) => transition && (transition.from === id || transition.to === id))
+      .map((transition) => transition.id),
+  )
+
+  connectedTransitionIds.forEach((transitionId) => {
+    const transitionShape = store.get(stage_ref).findOne(`#tr_${transitionId}`)
+    transitionShape?.destroy()
+  })
+
+  store.set(transition_list, (prev) => {
+    const nextTransitions = [...prev]
+    connectedTransitionIds.forEach((transitionId) => {
+      nextTransitions[transitionId] = undefined
+    })
+    return nextTransitions
+  })
+
+  store.set(node_list, (prev) => {
+    const nextNodes = [...prev]
+
+    nextNodes.forEach((node, nodeId) => {
+      if (!node) return
+
+      if (nodeId === id) {
+        nextNodes[nodeId] = undefined
+        return
+      }
+
+      nextNodes[nodeId] = {
+        ...node,
+        transitions: node.transitions.filter(
+          (transition) => !connectedTransitionIds.has(transition.id),
+        ),
+      }
+    })
+
+    return nextNodes
+  })
+
+  store.set(deleted_nodes, (prev) => {
+    if (prev.includes(id)) return prev
+    const nextDeleted = [...prev, id]
+    nextDeleted.sort((left, right) => left - right)
+    return nextDeleted
+  })
+
+  if (store.get(initial_state) === id) {
+    store.set(initial_state, (_) => null)
+  }
+
+  addToHistory()
+  sendExportToMainState()
+}
+
+function getNextTransitionId() {
+  const transitions = store.get(transition_list) ?? []
+  let maxId = -1
+
+  transitions.forEach((transition, index) => {
+    if (!transition) return
+    maxId = Math.max(maxId, transition.id ?? index)
+  })
+
+  return maxId + 1
+}
+
 // This function returns the points for the
 // state transition arrow between states id1 and id2
-// Optional: nodesMap can be passed to use custom node positions (for animations)
-export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
+// Optional: nodesMap / transitionsOverride can be passed to compute points against
+// incoming state during imports instead of the currently committed store.
+export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transitionsOverride = null) {
   const nodes = nodesMap || store.get(node_list)
   const startNode = nodes[id1]
   const clickedGroup = nodes[id2]
@@ -410,9 +404,9 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
   }
 
   // Get all transitions between these two nodes
-  const allTransitions = store
-    .get(transition_list)
-    .filter((t) => t && t.from === id1 && t.to === id2)
+  const allTransitions = (transitionsOverride || store.get(transition_list)).filter(
+    (t) => t && t.from === id1 && t.to === id2,
+  )
 
   // Sort them by ID to ensure consistent ordering
   allTransitions.sort((a, b) => a.id - b.id)
@@ -430,17 +424,32 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
     const x = node.x
     const y = node.y
     const radius = node.radius
-    const baseOffset = 30
-    const step = 30
-    const offset = baseOffset + effectiveIndex * step
+    const slotsPerLevel = 4
+    const level = Math.floor(effectiveIndex / slotsPerLevel)
+    const slotInLevel = effectiveIndex % slotsPerLevel
+    const sideAngles = [
+      (-2 * Math.PI) / 3, // 11 o'clock
+      -Math.PI / 3, // 1 o'clock
+      Math.PI / 3, // 5 o'clock
+      (2 * Math.PI) / 3, // 7 o'clock
+    ]
+    const sideAngle = sideAngles[slotInLevel] ?? -Math.PI / 2
+
+    const openingAngle = 0.22
+    const anchorRadius = radius + 5
+    const baseControlRadius = radius + 52
+    const controlRadius = baseControlRadius * (1 + level * 0.5)
+
+    const startAngle = sideAngle - openingAngle
+    const endAngle = sideAngle + openingAngle
 
     const points = [
-      x - radius / 1.5,
-      y - radius, // Start point (left of the node)
-      x,
-      y - radius - 2 * offset, // Control point (top)
-      x + radius / 1.5,
-      y - radius, // End point (right of the node)
+      x + anchorRadius * Math.cos(startAngle),
+      y + anchorRadius * Math.sin(startAngle),
+      x + controlRadius * Math.cos(sideAngle),
+      y + controlRadius * Math.sin(sideAngle),
+      x + anchorRadius * Math.cos(endAngle),
+      y + anchorRadius * Math.sin(endAngle),
     ]
 
     return points
@@ -510,8 +519,6 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null) {
 
 function makeTransition(id, start_node, end_node) {
   const points = getTransitionPoints(start_node, end_node, id)
-  const type = store.get(automaton_type) ?? 'mealy'
-  const defaultLabel = type === 'mealy' ? '0/x' : '0'
 
   const newTransition = {
     id,
@@ -520,13 +527,14 @@ function makeTransition(id, start_node, end_node) {
     fill: '#ffffffdd',
     points,
     tension: start_node == end_node ? 1 : 0.5,
-    label: defaultLabel,
+    label: '',
     fontSize: 20,
     fontStyle: 'bold',
     label_fill: '#ffffff',
     label_align: 'center',
     from: start_node,
     to: end_node,
+    isDraft: true,
   }
 
   return newTransition

@@ -2,7 +2,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { active_transition, engine_mode, show_popup, transition_list, store } from '../lib/stores'
-import { handleTransitionSave } from '../lib/transitions'
+import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
 
 const Popup = () => {
   const showPopup = useAtomValue(show_popup)
@@ -37,11 +37,12 @@ function ChooseTransitionLabelDFA() {
   const TransitionList = useAtomValue(transition_list)
 
   const setShowPopup = store.set // jotai store aus ./stores
-  const [labels, setLabels] = useState(TransitionList[ActiveTransition]?.name)
+  const [labels, setLabels] = useState([])
 
   useEffect(() => {
-    setLabels(TransitionList[ActiveTransition]?.name)
-  }, [ActiveTransition, TransitionList[ActiveTransition]?.name])
+    const currentLabel = TransitionList[ActiveTransition]?.label
+    setLabels(currentLabel ? [currentLabel] : [])
+  }, [ActiveTransition, TransitionList])
 
   function toggleAlphabet(val) {
     if (labels.includes(val)) setLabels(labels.filter((x) => x !== val))
@@ -49,9 +50,12 @@ function ChooseTransitionLabelDFA() {
   }
 
   function handleCancel() {
+    if (TransitionList[ActiveTransition]?.isDraft) {
+      removeTransitionById(ActiveTransition)
+    }
     store.set(show_popup, false)
     store.set(active_transition, null)
-    setLabels(TransitionList[ActiveTransition]?.name)
+    setLabels([])
   }
 
   return (
@@ -86,7 +90,7 @@ function ChooseTransitionLabelDFA() {
           onClick={() => {
             if (labels.length > 0) {
               handleTransitionSave(labels)
-              setLabels(TransitionList[ActiveTransition]?.name)
+              setLabels([])
             }
           }}
           className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
@@ -100,8 +104,19 @@ function ChooseTransitionLabelDFA() {
 }
 
 function ChooseTransitionLabelFreeStyle() {
+  const ActiveTransition = useAtomValue(active_transition)
+  const TransitionList = useAtomValue(transition_list)
   const [label, setLabel] = useState('')
+
+  useEffect(() => {
+    const currentTransition = TransitionList[ActiveTransition]
+    setLabel(currentTransition?.isDraft ? '' : (currentTransition?.label ?? ''))
+  }, [ActiveTransition, TransitionList])
+
   function handleCancel() {
+    if (TransitionList[ActiveTransition]?.isDraft) {
+      removeTransitionById(ActiveTransition)
+    }
     store.set(show_popup, false)
     store.set(active_transition, null)
     setLabel('')

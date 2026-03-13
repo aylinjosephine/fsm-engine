@@ -13,6 +13,44 @@ import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
 import { sendExportToMainState } from './export'
 
+export function removeTransitionById(id) {
+  const transitionEntry = store.get(transition_list)[id]
+  if (!transitionEntry) return false
+
+  const from_state = transitionEntry.from
+  const to_state = transitionEntry.to
+
+  const transition = store.get(stage_ref).findOne(`#tr_${id}`)
+  transition?.destroy()
+
+  store.set(transition_list, (old) => {
+    const newTrList = [...old]
+    newTrList[id] = undefined
+    return newTrList
+  })
+
+  store.set(node_list, (old) => {
+    const newNodes = [...old]
+
+    if (newNodes[from_state]) {
+      newNodes[from_state] = {
+        ...newNodes[from_state],
+        transitions: newNodes[from_state].transitions.filter((tr) => tr.id !== id),
+      }
+    }
+
+    if (from_state !== to_state && newNodes[to_state]) {
+      newNodes[to_state] = {
+        ...newNodes[to_state],
+        transitions: newNodes[to_state].transitions.filter((tr) => tr.id !== id),
+      }
+    }
+    return newNodes
+  })
+
+  return true
+}
+
 // compute x / y bit number
 export function getEditorBitLengths() {
   const transitions = store.get(transition_list) ?? []
@@ -40,45 +78,10 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
   return `${inp}/${out}`
 }
 
-
 // Handle a click event on a transition
 export function handleTransitionClick(id) {
   if (store.get(editor_state) === 'Remove') {
-    const from_state = store.get(transition_list)[id].from
-    const to_state = store.get(transition_list)[id].to
-
-    // Delete the Display arrow
-    const transition = store.get(stage_ref).findOne(`#tr_${id}`)
-    transition?.destroy()
-
-    // Remove this transition in store
-    store.set(transition_list, (old) => {
-      const newTrList = [...old]
-      newTrList[id] = undefined
-      return newTrList
-    })
-
-    // Remove this transition from Node
-    store.set(node_list, (old) => {
-      const newNodes = [...old]
-
-      newNodes[from_state] = {
-        ...newNodes[from_state],
-        transitions: newNodes[from_state].transitions.filter(
-          (tr) => tr.from !== from_state || tr.to !== to_state,
-        ),
-      }
-
-      if (from_state !== to_state) {
-        newNodes[to_state] = {
-          ...newNodes[to_state],
-          transitions: newNodes[to_state].transitions.filter(
-            (tr) => tr.from !== from_state || tr.to !== to_state,
-          ),
-        }
-      }
-      return newNodes
-    })
+    if (!removeTransitionById(id)) return
     addToHistory()
     sendExportToMainState()
     return
@@ -91,7 +94,9 @@ export function handleTransitionClick(id) {
 export function handleTransitionSave(labels) {
   const automata_type = store.get(engine_mode).type
   const active_tr = store.get(active_transition)
-  const src_node = store.get(transition_list)[active_tr].from
+  const activeTransition = store.get(transition_list)[active_tr]
+  if (!activeTransition) return
+  const src_node = activeTransition.from
 
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim())
@@ -143,6 +148,7 @@ export function handleTransitionSave(labels) {
       newTrList[active_tr] = {
         ...newTrList[active_tr],
         label: stringLabels[0] ?? '', // Sort them before updating labels
+        isDraft: false,
       }
     }
     return newTrList
@@ -161,19 +167,19 @@ export function handleTransitionSave(labels) {
     labelShape.y(points[3] - 10)
   }
 
-   const { maxInput, maxOutput } = getEditorBitLengths()
+  const { maxInput, maxOutput } = getEditorBitLengths()
 
-store.set(transition_list, (old) => {
-  return old.map((t) => {
-    if (!t) return t
-    const rawLabel = String(t.label ?? '')
-    return {
-      ...t,
-      label: padLabelToBitLengths(rawLabel, maxInput, maxOutput),
-    }
+  store.set(transition_list, (old) => {
+    return old.map((t) => {
+      if (!t) return t
+      const rawLabel = String(t.label ?? '')
+      return {
+        ...t,
+        label: padLabelToBitLengths(rawLabel, maxInput, maxOutput),
+      }
+    })
   })
-})
 
-store.set(active_transition, null)
-
+  store.set(active_transition, null)
+  sendExportToMainState()
 }

@@ -144,9 +144,12 @@ const Editor = () => {
             {
               /******** Display The Transitions of the FSM ********/
               transitionList.map(
-                (transition, idx) =>
+                (transition) =>
                   transition && (
-                    <Group key={idx} id={`tr_${transition.id}`}>
+                    <Group
+                      key={`${transition.id}-${transition.renderNonce ?? 0}`}
+                      id={`tr_${transition.id}`}
+                    >
                       {/* Transition arrow object */}
                       <Arrow
                         id={`transition_${transition.id}`}
@@ -161,7 +164,7 @@ const Editor = () => {
                       {/* Add a Label to the middle of the arrow */}
                       {(() => {
                         const labelText =
-                          transition.label && transition.label.length > 0 ? transition.label : '0'
+                          transition.label && transition.label.length > 0 ? transition.label : ''
 
                         return (
                           <Label
