@@ -86,7 +86,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           fill: '#ffffffdd',
           points: [],
           tension: t.from === t.to ? 1 : 0.5,
-          fontSize: 20,
+          fontSize: 14,
           fontStyle: 'bold',
           label_fill: '#ffffff',
           label_align: 'center',
@@ -175,8 +175,12 @@ function syncRenderedTransitions(transitionAtoms) {
     }
 
     if (labelShape) {
-      labelShape.x(transition.points[2] - 2 * labelText.length)
-      labelShape.y(transition.points[3] - 10)
+      const pts = transition.points
+      const mx = 0.25 * pts[0] + 0.5 * pts[2] + 0.25 * pts[4]
+      const my = 0.25 * pts[1] + 0.5 * pts[3] + 0.25 * pts[5]
+      const halfW = labelText.length * 4 + 5
+      labelShape.x(mx - halfW)
+      labelShape.y(my - 12)
     }
   })
 
@@ -318,7 +322,7 @@ window.addEventListener('message', (event) => {
       x: baseX + col * dx,
       y: baseY + row * dy,
       radius: name.length + 35,
-      fill: '#ffffff80',
+      fill: '#4a6fae88',
       moore_output,
       type: {
         initial: !!s.initial,

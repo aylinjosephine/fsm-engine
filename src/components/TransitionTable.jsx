@@ -222,7 +222,7 @@ const TransitionTable = () => {
 					points: points,
 					tension: fromId === newToIdInt ? 1 : 0.5,
 					name: [alphabet],
-					fontSize: 20,
+					fontSize: 14,
 					fontStyle: "bold",
 					name_fill: "#ffffff",
 					name_align: "center",

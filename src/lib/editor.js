@@ -26,6 +26,45 @@ import { sendExportToMainState } from './export'
 import dagre from 'dagre'
 import Konva from 'konva'
 
+// Handler function for dropping the initial arrow handle onto a state
+export function handleInitialArrowDrop(dropX, dropY) {
+  const nodes = store.get(node_list)
+  let closest = null
+  let minDist = Infinity
+
+  nodes.forEach((node) => {
+    if (!node) return
+    const dist = Math.sqrt((node.x - dropX) ** 2 + (node.y - dropY) ** 2)
+    const snapRadius = node.radius + 40
+    if (dist < snapRadius && dist < minDist) {
+      closest = node
+      minDist = dist
+    }
+  })
+
+  if (!closest) return
+  const prevInitialId = store.get(initial_state)
+  if (prevInitialId === closest.id) return
+
+  store.set(node_list, (prev) => {
+    const next = [...prev]
+    if (prevInitialId != null && next[prevInitialId]) {
+      next[prevInitialId] = {
+        ...next[prevInitialId],
+        type: { ...next[prevInitialId].type, initial: false, intermediate: true },
+      }
+    }
+    next[closest.id] = {
+      ...next[closest.id],
+      type: { ...next[closest.id].type, initial: true, intermediate: false },
+    }
+    return next
+  })
+  store.set(initial_state, closest.id)
+  addToHistory()
+  sendExportToMainState()
+}
+
 // Handler function that is called when the editor is clicked
 export function HandleEditorClick(e) {
   const group = e.target.getStage().findOne('Layer')
@@ -171,7 +210,7 @@ export function HandleStateClick(e, id) {
   }
 
   // If not in special modes, select the node
-  if (!['Remove', 'Connect', 'Label'].includes(store.get(editor_state))) {
+  if (!['Add', 'Remove', 'Connect', 'Label'].includes(store.get(editor_state))) {
     store.set(current_selected, (_prev) => id)
   }
 }
@@ -298,7 +337,7 @@ function makeCircle(position, id) {
     x: x,
     y: y,
     name: `q${id}`,
-    fill: '#ffffff80',
+    fill: '#4a6fae88',
     radius: `q${id}`.length + 35,
     type: {
       initial: id === 0,
@@ -528,7 +567,7 @@ function makeTransition(id, start_node, end_node) {
     points,
     tension: start_node == end_node ? 1 : 0.5,
     label: '',
-    fontSize: 20,
+    fontSize: 14,
     fontStyle: 'bold',
     label_fill: '#ffffff',
     label_align: 'center',

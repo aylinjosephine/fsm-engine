@@ -7,6 +7,7 @@ import {
   HandleScrollWheel,
   HandleStateClick,
   HandleStateDrag,
+  handleInitialArrowDrop,
 } from '../lib/editor'
 import {
   editor_state,
@@ -79,7 +80,11 @@ const Editor = () => {
                       x={0}
                       y={0}
                       radius={2 * circle.name.length + circle.radius}
-                      fill={circle.fill}
+                      fill={
+                        circle.fill === '#ffffff80' || circle.fill === '#ffffff'
+                          ? '#4a6fae88'
+                          : circle.fill
+                      }
                       stroke={currentSelected === circle.id ? '#3b82f6' : null}
                       strokeWidth={currentSelected === circle.id ? 4 : 0}
                     />
@@ -110,19 +115,7 @@ const Editor = () => {
                     )}
 
                     {/* If state is initial, draw an incoming arrow */}
-                    {circle.type.initial && (
-                      <Arrow
-                        id="start_arrow"
-                        x={-1 * (2 * circle.radius + 2.5 * circle.name.length)}
-                        y={0}
-                        points={[-circle.radius / 1.5, 0, circle.radius - 5, 0]}
-                        pointerLength={10}
-                        pointerWidth={10}
-                        fill={'#ffffffdd'}
-                        stroke={'#ffffffdd'}
-                        strokeWidth={3}
-                      />
-                    )}
+                    {/* arrow is now rendered top-level for drag support */}
 
                     {/* If state is final, draw an extra outer circle */}
                     {circle.type.final && (
@@ -132,13 +125,57 @@ const Editor = () => {
                         radius={2 * circle.name.length + circle.radius + 5}
                         fill={'transparent'}
                         strokeWidth={3}
-                        stroke={circle.fill}
+                        stroke={
+                          circle.fill === '#ffffff80' || circle.fill === '#ffffff'
+                            ? '#4a6fae88'
+                            : circle.fill
+                        }
                       />
                     )}
                   </Group>
                 ),
             )
           }
+
+          {/******** Initial State Arrow (top-level, draggable handle) ********/}
+          {nodeList.map(
+            (circle) =>
+              circle?.type?.initial &&
+              (() => {
+                const offset = 2 * circle.radius + 2.5 * circle.name.length
+                const tailX = circle.x - offset - circle.radius / 1.5
+                const headX = circle.x - offset + circle.radius - 5
+                const y = circle.y
+                return (
+                  <Group key={`initial_arrow_${circle.id}`}>
+                    <Arrow
+                      points={[tailX, y, headX, y]}
+                      pointerLength={8}
+                      pointerWidth={8}
+                      fill={'#6b7280cc'}
+                      stroke={'#6b7280cc'}
+                      strokeWidth={2}
+                      listening={false}
+                    />
+                    {/* Draggable tail handle */}
+                    <Circle
+                      x={tailX}
+                      y={y}
+                      radius={5}
+                      fill={'#6b7280'}
+                      stroke={'#ffffff50'}
+                      strokeWidth={1}
+                      draggable
+                      onDragEnd={(e) => {
+                        const pos = e.target.position()
+                        handleInitialArrowDrop(pos.x, pos.y)
+                        e.target.position({ x: tailX, y })
+                      }}
+                    />
+                  </Group>
+                )
+              })(),
+          )}
 
           <Group key={transitionList}>
             {
@@ -165,23 +202,21 @@ const Editor = () => {
                       {(() => {
                         const labelText =
                           transition.label && transition.label.length > 0 ? transition.label : ''
+                        const pts = transition.points
+                        // quadratic bezier midpoint at t=0.5
+                        const mx = 0.25 * pts[0] + 0.5 * pts[2] + 0.25 * pts[4]
+                        const my = 0.25 * pts[1] + 0.5 * pts[3] + 0.25 * pts[5]
+                        // center pill on midpoint: half-width ≈ chars * (fontSize*0.6/2) + padding
+                        const halfW = labelText.length * 4 + 5
 
                         return (
                           <Label
                             id={`tr_label${transition.id}`}
-                            x={transition.points[2] - 2 * labelText.length}
-                            y={transition.points[3] - 10}
+                            x={mx - halfW}
+                            y={my - 12}
                             onClick={() => handleTransitionClick(transition.id)}
                           >
-                            <Tag
-                              fill="#ffffff50"
-                              opacity={0.8}
-                              cornerRadius={5}
-                              pointerDirection="down"
-                              pointerWidth={10}
-                              pointerHeight={10}
-                              lineJoin="round"
-                            />
+                            <Tag fill="#0d0d18" opacity={0.85} cornerRadius={6} lineJoin="round" />
                             <Text
                               id={`trtext_${transition.id}`}
                               text={labelText}

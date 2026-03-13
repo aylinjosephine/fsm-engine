@@ -65,8 +65,6 @@ export function App() {
 
       <Popup />
 
-      <TopDock />
-
       <SaveDialog />
 
       <TransitionTable />
