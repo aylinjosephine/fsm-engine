@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { active_transition, engine_mode, show_popup, transition_list, store } from '../lib/stores'
@@ -10,6 +10,8 @@ import {
 
 const Popup = () => {
   const showPopup = useAtomValue(show_popup)
+  const activeTransition = useAtomValue(active_transition)
+  const transitionList = useAtomValue(transition_list)
   const popups = [<ChooseTransitionLabelFreeStyle />, <ChooseTransitionLabelDFA />]
   const EngineMode = useAtomValue(engine_mode)
 
@@ -19,13 +21,28 @@ const Popup = () => {
     NFA: 1,
   }
 
+  function handleBackdropClick() {
+    if (!showPopup) return
+
+    if (transitionList[activeTransition]?.isDraft) {
+      removeTransitionById(activeTransition)
+    }
+
+    store.set(show_popup, false)
+    store.set(active_transition, null)
+  }
+
   return (
     <div
-      className={`absolute left-0 w-screen h-fit flex justify-center transition-all ease-in-out duration-550 ${
-        showPopup ? 'top-12' : '-top-20 opacity-0'
+      onMouseDown={handleBackdropClick}
+      className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
+        showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div className="h-full w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]">
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]"
+      >
         {popups[engine_mode_popup_map[EngineMode.type]]}
       </div>
     </div>
@@ -113,8 +130,12 @@ function ChooseTransitionLabelFreeStyle() {
   const [inputValue, setInputValue] = useState('')
   const [outputValue, setOutputValue] = useState('')
 
+  function keepAllowedSymbols(value) {
+    return value.replace(/[^01-]/g, '')
+  }
+
   function isValidBits(value) {
-    return /^[01x]+$/.test(value)
+    return /^[01-]+$/.test(value)
   }
 
   useEffect(() => {
@@ -138,22 +159,24 @@ function ChooseTransitionLabelFreeStyle() {
   return (
     <>
       <span className="w-full mb-2">
-        <p className="font-github text-white text-xs pb-1">input=</p>
+        <p className="font-github text-white text-xs pb-1">input: </p>
         <input
           value={inputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
-          onChange={(e) => setInputValue(e.target.value.trim())}
+          pattern="[01-]*"
+          onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value))}
           placeholder=""
         />
       </span>
       <span className="w-full">
-        <p className="font-github text-white text-xs pb-1">output=</p>
+        <p className="font-github text-white text-xs pb-1">output: </p>
         <input
           value={outputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
-          onChange={(e) => setOutputValue(e.target.value.trim())}
+          pattern="[01-]*"
+          onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value))}
           placeholder=""
         />
       </span>
