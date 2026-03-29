@@ -1,4 +1,4 @@
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import {
   BookHeart,
   Cable,
@@ -7,16 +7,24 @@ import {
   ImageDown,
   MinusCircleIcon,
   PlusCircleIcon,
+  Settings,
   Undo2,
   Redo2,
   Edit,
   Sparkles,
 } from 'lucide-react'
-import { editor_state, transition_pairs, confirm_dialog_atom, engine_mode } from '../lib/stores'
+import {
+  editor_state,
+  transition_pairs,
+  confirm_dialog_atom,
+  engine_mode,
+  transition_list,
+} from '../lib/stores'
 import { newProject, getTransitionPoints, HandleAutoLayout } from '../lib/editor'
 import { undo, redo } from '../lib/history'
 import { useSetAtom } from 'jotai'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { changeTransitionBitLengths } from '../lib/transitions'
 
 // Define the Components of the Dock
 // Icon Look Constants
@@ -31,7 +39,23 @@ const Dock = () => {
   const setConfirmDialog = useSetAtom(confirm_dialog_atom)
   const [engineMode, setEngineMode] = useAtom(engine_mode)
   const [showLegend, setShowLegend] = useState(false)
+  const [showBitMenu, setShowBitMenu] = useState(false)
+  const transitionList = useAtomValue(transition_list)
   // Jotai Atoms
+
+  const { inputBits, outputBits } = useMemo(() => {
+    let maxInput = 1
+    let maxOutput = 1
+
+    for (const tr of transitionList ?? []) {
+      if (!tr) continue
+      const [inp = '', out = ''] = String(tr.label ?? '').split('/')
+      maxInput = Math.max(maxInput, inp.length || 1)
+      maxOutput = Math.max(maxOutput, out.length || 1)
+    }
+
+    return { inputBits: maxInput, outputBits: maxOutput }
+  }, [transitionList])
 
   const dockItems = [
     {
@@ -71,14 +95,25 @@ const Dock = () => {
   return (
     <>
       <div className="fixed top-3 right-3 z-40 select-none">
-        <button
-          type="button"
-          onClick={() => setShowLegend((prev) => !prev)}
-          title="Legend"
-          className="text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-0.5 hover:scale-105 active:scale-95 transition-all ease-in-out"
-        >
-          <CircleHelp stroke={iconFillColor} size={iconSize} />
-        </button>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={() => setShowLegend((prev) => !prev)}
+            title="Legend"
+            className="text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-0.5 hover:scale-105 active:scale-95 transition-all ease-in-out"
+          >
+            <CircleHelp stroke={iconFillColor} size={iconSize} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowBitMenu((prev) => !prev)}
+            title="Settings"
+            className="text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-0.5 hover:scale-105 active:scale-95 transition-all ease-in-out"
+          >
+            <Settings stroke={iconFillColor} size={iconSize} />
+          </button>
+        </div>
 
         {showLegend && (
           <div className="mt-1.5 w-80 bg-primary-bg border border-border-bg rounded-lg shadow-[0px_0px_30px_0px_#00000080] px-3 py-3">
@@ -166,7 +201,72 @@ const Dock = () => {
                 </svg>
                 <div className="flex flex-col">
                   <span className="text-white text-sm">Initial state</span>
-                  <span className="text-white/60 text-xs">The grey arrow with the point on one end marks the start state. It does not represent a transition. </span>
+                  <span className="text-white/60 text-xs">
+                    The grey arrow with the point on one end marks the start state. It does not
+                    represent a transition.{' '}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBitMenu && (
+          <div className="mt-1.5 w-64 ml-auto bg-primary-bg border border-border-bg rounded-lg shadow-[0px_0px_30px_0px_#00000080] px-3 py-3">
+            <div className="font-github text-sm text-white mb-2">Settings</div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col items-center gap-0.5 text-xs select-none">
+                <span className="text-white/60 font-github text-[11px] leading-none">
+                  Choose the amount of input bits:{' '}
+                </span>
+                <div className="inline-flex items-center rounded-lg bg-secondary-bg border border-border-bg p-0.5 gap-0.5">
+                  <button
+                    type="button"
+                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    disabled={inputBits <= 1}
+                    onClick={() => changeTransitionBitLengths(-1, 0)}
+                  >
+                    -
+                  </button>
+                  <span className="px-2 py-1 font-github text-white tabular-nums min-w-6 text-center">
+                    {inputBits}
+                  </span>
+                  <button
+                    type="button"
+                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    disabled={inputBits >= 10}
+                    onClick={() => changeTransitionBitLengths(1, 0)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-0.5 text-xs select-none">
+                <span className="text-white/60 font-github text-[11px] leading-none">
+                  Choose the amount of output bits:{' '}
+                </span>
+                <div className="inline-flex items-center rounded-lg bg-secondary-bg border border-border-bg p-0.5 gap-0.5">
+                  <button
+                    type="button"
+                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    disabled={outputBits <= 1}
+                    onClick={() => changeTransitionBitLengths(0, -1)}
+                  >
+                    -
+                  </button>
+                  <span className="px-2 py-1 font-github text-white tabular-nums min-w-6 text-center">
+                    {outputBits}
+                  </span>
+                  <button
+                    type="button"
+                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    disabled={outputBits >= 10}
+                    onClick={() => changeTransitionBitLengths(0, 1)}
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             </div>

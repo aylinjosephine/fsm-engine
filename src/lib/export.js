@@ -163,7 +163,10 @@ function syncRenderedTransitions(transitionAtoms) {
     const transitionShape = stage.findOne(`#transition_${transition.id}`)
     const labelShape = stage.findOne(`#tr_label${transition.id}`)
     const textShape = stage.findOne(`#trtext_${transition.id}`)
-    const labelText = transition.label && transition.label.length > 0 ? transition.label : ''
+    const labelText =
+      transition.label && transition.label.length > 0
+        ? String(transition.label).replace(/x/g, '-')
+        : ''
 
     if (transitionShape) {
       transitionShape.points(transition.points)
@@ -214,8 +217,10 @@ function recomputeCommittedTransitionGeometry() {
 function normalizeTransitionForParent(transition) {
   const label = String(transition?.label ?? '')
   const [inputFromLabel = '', outputFromLabel = ''] = label.split('/')
-  const input = String(transition?.input ?? inputFromLabel ?? '')
-  const output = String(transition?.output ?? transition?.mealy_output ?? outputFromLabel ?? '')
+  const input = String(transition?.input ?? inputFromLabel ?? '').replace(/-/g, 'x')
+  const output = String(
+    transition?.output ?? transition?.mealy_output ?? outputFromLabel ?? '',
+  ).replace(/-/g, 'x')
   const nodes = (store.get(node_list) ?? []).filter(Boolean)
   const maxIndex = Math.max(nodes.length - 1, 0)
   const stateBits = Math.max(maxIndex.toString(2).length, 1)

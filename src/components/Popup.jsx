@@ -126,25 +126,57 @@ function ChooseTransitionLabelDFA() {
 
 function ChooseTransitionLabelFreeStyle() {
   const MAX_IO_BITS = 10
+  const MIN_IO_BITS = 1
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
   const [inputValue, setInputValue] = useState('')
   const [outputValue, setOutputValue] = useState('')
+  const [inputBits, setInputBits] = useState(1)
+  const [outputBits, setOutputBits] = useState(1)
 
-  function keepAllowedSymbols(value) {
-    return value.replace(/[^01-]/g, '').slice(0, MAX_IO_BITS)
+  function clampBitCount(value) {
+    return Math.min(MAX_IO_BITS, Math.max(MIN_IO_BITS, Number(value) || MIN_IO_BITS))
   }
 
-  function isValidBits(value) {
-    return /^[01-]{1,10}$/.test(value)
+  function getSelectedBitCounts(transitions) {
+    let maxInput = 1
+    let maxOutput = 1
+
+    for (const tr of transitions ?? []) {
+      if (!tr) continue
+      const [inp = '', out = ''] = String(tr.label ?? '').split('/')
+      maxInput = Math.max(maxInput, inp.length || 1)
+      maxOutput = Math.max(maxOutput, out.length || 1)
+    }
+
+    return {
+      input: clampBitCount(maxInput),
+      output: clampBitCount(maxOutput),
+    }
+  }
+
+  function keepAllowedSymbols(value, maxLength) {
+    return String(value ?? '')
+      .replace(/x/g, '-')
+      .replace(/[^01-]/g, '')
+      .slice(0, clampBitCount(maxLength))
+  }
+
+  function isValidBits(value, maxLength) {
+    const limit = clampBitCount(maxLength)
+    return value.length > 0 && value.length <= limit && /^[01-]+$/.test(value)
   }
 
   useEffect(() => {
+    const selectedBits = getSelectedBitCounts(TransitionList)
+    setInputBits(selectedBits.input)
+    setOutputBits(selectedBits.output)
+
     const currentTransition = TransitionList[ActiveTransition]
     const rawLabel = currentTransition?.isDraft ? '' : (currentTransition?.label ?? '')
     const [input = '', output = ''] = String(rawLabel).split('/')
-    setInputValue(keepAllowedSymbols(input))
-    setOutputValue(keepAllowedSymbols(output))
+    setInputValue(keepAllowedSymbols(input, selectedBits.input))
+    setOutputValue(keepAllowedSymbols(output, selectedBits.output))
   }, [ActiveTransition, TransitionList])
 
   function handleCancel() {
@@ -165,9 +197,9 @@ function ChooseTransitionLabelFreeStyle() {
           value={inputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
-          maxLength={MAX_IO_BITS}
+          maxLength={inputBits}
           pattern="[01-]*"
-          onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value))}
+          onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value, inputBits))}
           placeholder=""
         />
       </span>
@@ -177,9 +209,9 @@ function ChooseTransitionLabelFreeStyle() {
           value={outputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
-          maxLength={MAX_IO_BITS}
+          maxLength={outputBits}
           pattern="[01-]*"
-          onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value))}
+          onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
           placeholder=""
         />
       </span>
@@ -190,23 +222,25 @@ function ChooseTransitionLabelFreeStyle() {
           className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
         >
           <X size={16} color="#ffffff" />
-          Abbrechen
+          Cancle
         </button>
         <button
           type="button"
           onClick={() => {
             const input = inputValue.trim()
             const output = outputValue.trim()
-            const valid = isValidBits(input) && isValidBits(output)
+            const valid = isValidBits(input, inputBits) && isValidBits(output, outputBits)
+            const normalizedInput = input.replace(/-/g, 'x')
+            const normalizedOutput = output.replace(/-/g, 'x')
 
             if (!valid) {
-              handleInvalidTransitionFallback(input, output)
+              handleInvalidTransitionFallback(normalizedInput, normalizedOutput)
               setInputValue('')
               setOutputValue('')
               return
             }
 
-            handleTransitionSave([`${input}/${output}`])
+            handleTransitionSave([`${normalizedInput}/${normalizedOutput}`])
             setInputValue('')
             setOutputValue('')
           }}

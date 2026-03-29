@@ -13,6 +13,9 @@ import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
 import { sendExportToMainState } from './export'
 
+const MIN_IO_BITS = 1
+const MAX_IO_BITS = 10
+
 export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list)[id]
   if (!transitionEntry) return false
@@ -72,10 +75,41 @@ export function getEditorBitLengths() {
 function padLabelToBitLengths(label, maxInput, maxOutput) {
   const [inpRaw = '', outRaw = ''] = label.split('/')
 
-  const inp = inpRaw.padEnd(maxInput, 'x')
-  const out = outRaw.padEnd(maxOutput, 'x')
+  const inp = inpRaw.padEnd(maxInput, 'x').slice(0, maxInput)
+  const out = outRaw.padEnd(maxOutput, 'x').slice(0, maxOutput)
 
   return `${inp}/${out}`
+}
+
+function clampBitsCount(value) {
+  return Math.min(MAX_IO_BITS, Math.max(MIN_IO_BITS, Number(value) || MIN_IO_BITS))
+}
+
+export function setTransitionBitLengths(inputBits, outputBits) {
+  const targetInput = clampBitsCount(inputBits)
+  const targetOutput = clampBitsCount(outputBits)
+  const { maxInput, maxOutput } = getEditorBitLengths()
+
+  if (targetInput === maxInput && targetOutput === maxOutput) return false
+
+  addToHistory()
+  store.set(transition_list, (old) =>
+    old.map((t) => {
+      if (!t) return t
+      return {
+        ...t,
+        label: padLabelToBitLengths(String(t.label ?? ''), targetInput, targetOutput),
+      }
+    }),
+  )
+
+  sendExportToMainState()
+  return true
+}
+
+export function changeTransitionBitLengths(inputDelta = 0, outputDelta = 0) {
+  const { maxInput, maxOutput } = getEditorBitLengths()
+  return setTransitionBitLengths(maxInput + inputDelta, maxOutput + outputDelta)
 }
 
 function isValidBits(value) {
@@ -105,8 +139,14 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
   }
 
   const { maxInput, maxOutput } = getEditorBitLengths()
-  const input = isValidBits(inputValue) ? String(inputValue).trim() : 'x'.repeat(maxInput)
-  const output = isValidBits(outputValue) ? String(outputValue).trim() : 'x'.repeat(maxOutput)
+  const normalizedInputValue = String(inputValue ?? '')
+    .replace(/-/g, 'x')
+    .trim()
+  const normalizedOutputValue = String(outputValue ?? '')
+    .replace(/-/g, 'x')
+    .trim()
+  const input = isValidBits(normalizedInputValue) ? normalizedInputValue : 'x'.repeat(maxInput)
+  const output = isValidBits(normalizedOutputValue) ? normalizedOutputValue : 'x'.repeat(maxOutput)
   const paddedLabel = padLabelToBitLengths(`${input}/${output}`, maxInput, maxOutput)
   const unresolvedPattern = 'x'.repeat(getStateBits())
 
@@ -155,7 +195,7 @@ export function handleTransitionSave(labels) {
   const src_node = activeTransition.from
 
   // label validation: either x or x/y
-  const stringLabels = labels.map((l) => String(l).trim())
+  const stringLabels = labels.map((l) => String(l).trim().replace(/-/g, 'x'))
   for (const label of stringLabels) {
     if (!/^[01x]+\/[01x]+$/.test(label)) {
       store.set(alert, `"${label}" invalid, only format input/output with {0,1,x} allowed!`)
@@ -214,7 +254,8 @@ export function handleTransitionSave(labels) {
   const displayText = store.get(stage_ref).findOne(`#trtext_${active_tr}`)
   const labelShape = store.get(stage_ref).findOne(`#tr_label${active_tr}`)
 
-  const labelText = stringLabels[0] ?? ''
+  const rawLabelText = stringLabels[0] ?? ''
+  const labelText = rawLabelText.replace(/x/g, '-')
 
   if (displayText) displayText.text(labelText)
   if (labelShape) {
