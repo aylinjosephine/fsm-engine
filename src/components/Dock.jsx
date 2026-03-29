@@ -103,6 +103,10 @@ const Dock = () => {
     item.name == editorState ? setEditorState(null) : setEditorState(item.name)
   }
 
+  function isModeButton(name) {
+    return ['Move', 'Add', 'Remove', 'Connect'].includes(name)
+  }
+
   return (
     <>
       <div className="fixed top-3 right-3 z-40 select-none">
@@ -294,7 +298,8 @@ const Dock = () => {
                 type="button"
                 onClick={item.onclick ? item.onclick : () => default_onclick(item)}
                 className={`text-white flex gap-2 justify-center items-center font-github whitespace-nowrap ${
-                  (item.name === 'Move' && editorState === null) || item.name === editorState
+                  isModeButton(item.name) &&
+                  ((item.name === 'Move' && editorState === null) || item.name === editorState)
                     ? 'bg-blue-500'
                     : 'bg-secondary-bg'
                 } text-sm md:text-base px-3 py-2 border border-border-bg rounded-xl cursor-pointer hover:-translate-y-1 hover:scale-105 active:scale-95 transition-all ease-in-out`}

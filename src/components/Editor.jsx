@@ -29,6 +29,11 @@ const Editor = () => {
   const [_layerRef, setLayerRef] = useAtom(layer_ref)
   const currentSelected = useAtomValue(current_selected)
   const automatonType = useAtomValue(automaton_type)
+  const [hoveredStateId, setHoveredStateId] = useState(null)
+  const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
+  const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Controls', 'Guide'])
+  const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
+  const transitionsSelectable = editorState !== 'Connect'
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -75,6 +80,15 @@ const Editor = () => {
                       HandleStateDrag(e, circle.id)
                     }}
                     onClick={(e) => HandleStateClick(e, circle.id)}
+                    onMouseEnter={(e) => {
+                      if (!allowObjectHoverHighlight) return
+                      setHoveredStateId(circle.id)
+                      e.target.getStage().container().style.cursor = 'pointer'
+                    }}
+                    onMouseLeave={(e) => {
+                      setHoveredStateId((prev) => (prev === circle.id ? null : prev))
+                      e.target.getStage().container().style.cursor = 'default'
+                    }}
                   >
                     <Circle
                       x={0}
@@ -85,8 +99,20 @@ const Editor = () => {
                           ? '#4a6fae88'
                           : circle.fill
                       }
-                      stroke={currentSelected === circle.id ? '#3b82f6' : null}
-                      strokeWidth={currentSelected === circle.id ? 4 : 0}
+                      stroke={
+                        currentSelected === circle.id
+                          ? '#3b82f6'
+                          : allowObjectHoverHighlight && hoveredStateId === circle.id
+                            ? '#93c5fd'
+                            : null
+                      }
+                      strokeWidth={
+                        currentSelected === circle.id
+                          ? 4
+                          : allowObjectHoverHighlight && hoveredStateId === circle.id
+                            ? 2
+                            : 0
+                      }
                     />
                     <Text
                       x={-circle.radius - circle.name.length / 2}
@@ -190,12 +216,25 @@ const Editor = () => {
                       {/* Transition arrow object */}
                       <Arrow
                         id={`transition_${transition.id}`}
-                        stroke={transition.stroke}
-                        strokeWidth={transition.strokeWidth}
+                        stroke={hoveredTransitionId === transition.id ? '#93c5fd' : transition.stroke}
+                        strokeWidth={hoveredTransitionId === transition.id ? transition.strokeWidth + 1 : transition.strokeWidth}
                         fill={transition.fill}
                         points={transition.points}
                         tension={transition.tension}
-                        onClick={() => handleTransitionClick(transition.id)}
+                        onClick={() => {
+                          if (!transitionsSelectable) return
+                          handleTransitionClick(transition.id)
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!transitionsSelectable) return
+                          if (!allowObjectHoverHighlight) return
+                          setHoveredTransitionId(transition.id)
+                          e.target.getStage().container().style.cursor = 'pointer'
+                        }}
+                        onMouseLeave={(e) => {
+                          setHoveredTransitionId((prev) => (prev === transition.id ? null : prev))
+                          e.target.getStage().container().style.cursor = 'default'
+                        }}
                       />
 
                       {/* Add a Label to the middle of the arrow */}
@@ -215,9 +254,27 @@ const Editor = () => {
                             id={`tr_label${transition.id}`}
                             x={mx - halfW}
                             y={my - 12}
-                            onClick={() => handleTransitionClick(transition.id)}
+                            onClick={() => {
+                              if (!transitionsSelectable) return
+                              handleTransitionClick(transition.id)
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!transitionsSelectable) return
+                              if (!allowObjectHoverHighlight) return
+                              setHoveredTransitionId(transition.id)
+                              e.target.getStage().container().style.cursor = 'pointer'
+                            }}
+                            onMouseLeave={(e) => {
+                              setHoveredTransitionId((prev) => (prev === transition.id ? null : prev))
+                              e.target.getStage().container().style.cursor = 'default'
+                            }}
                           >
-                            <Tag fill="#0d0d18" opacity={0.85} cornerRadius={6} lineJoin="round" />
+                            <Tag
+                              fill={hoveredTransitionId === transition.id ? '#1b2638' : '#0d0d18'}
+                              opacity={0.85}
+                              cornerRadius={6}
+                              lineJoin="round"
+                            />
                             <Text
                               id={`trtext_${transition.id}`}
                               text={labelText}

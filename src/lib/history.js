@@ -144,7 +144,8 @@ function animateRestore(targetState, getTransitionPoints, callback) {
 				trShape.points(points);
 
 				if (trLabel) {
-					trLabel.x(points[2] - 2 * tr.name.toString().length);
+					const transitionLabel = String(tr.label ?? "");
+					trLabel.x(points[2] - 2 * transitionLabel.length);
 					trLabel.y(points[3] - 10);
 				}
 			}
