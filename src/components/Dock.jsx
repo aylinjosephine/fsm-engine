@@ -6,6 +6,7 @@ import {
   FilePlus,
   ImageDown,
   MinusCircleIcon,
+  Move,
   PlusCircleIcon,
   Settings,
   Undo2,
@@ -59,6 +60,11 @@ const Dock = () => {
 
   const dockItems = [
     {
+      name: 'Move',
+      icon: <Move stroke={iconFillColor} size={iconSize} />,
+      onclick: () => setEditorState(null),
+    },
+    {
       name: 'Add',
       icon: <PlusCircleIcon stroke={iconFillColor} size={iconSize} />,
     },
@@ -88,6 +94,11 @@ const Dock = () => {
   ]
 
   function default_onclick(item) {
+    if (item.name === 'Move') {
+      setEditorState(null)
+      return
+    }
+
     if (item.name == 'Connect') setTransitionPairs(null)
     item.name == editorState ? setEditorState(null) : setEditorState(item.name)
   }
@@ -283,7 +294,9 @@ const Dock = () => {
                 type="button"
                 onClick={item.onclick ? item.onclick : () => default_onclick(item)}
                 className={`text-white flex gap-2 justify-center items-center font-github whitespace-nowrap ${
-                  item.name === editorState ? 'bg-blue-500' : 'bg-secondary-bg'
+                  (item.name === 'Move' && editorState === null) || item.name === editorState
+                    ? 'bg-blue-500'
+                    : 'bg-secondary-bg'
                 } text-sm md:text-base px-3 py-2 border border-border-bg rounded-xl cursor-pointer hover:-translate-y-1 hover:scale-105 active:scale-95 transition-all ease-in-out`}
               >
                 {item.icon}
