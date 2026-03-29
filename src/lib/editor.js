@@ -589,6 +589,9 @@ export function HandleAutoLayout() {
 
   if (validNodeIds.length === 0) return
 
+  // Snapshot state before applying layout so Undo restores pre-layout positions.
+  addToHistory()
+
   // Create a new directed graph
   const g = new dagre.graphlib.Graph()
 
@@ -757,7 +760,6 @@ export function HandleAutoLayout() {
   // Stop animation after tween duration
   setTimeout(() => {
     anim.stop()
-    addToHistory()
   }, 550)
 }
 

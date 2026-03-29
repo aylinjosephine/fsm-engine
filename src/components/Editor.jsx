@@ -216,8 +216,14 @@ const Editor = () => {
                       {/* Transition arrow object */}
                       <Arrow
                         id={`transition_${transition.id}`}
-                        stroke={hoveredTransitionId === transition.id ? '#93c5fd' : transition.stroke}
-                        strokeWidth={hoveredTransitionId === transition.id ? transition.strokeWidth + 1 : transition.strokeWidth}
+                        stroke={
+                          hoveredTransitionId === transition.id ? '#93c5fd' : transition.stroke
+                        }
+                        strokeWidth={
+                          hoveredTransitionId === transition.id
+                            ? transition.strokeWidth + 1
+                            : transition.strokeWidth
+                        }
                         fill={transition.fill}
                         points={transition.points}
                         tension={transition.tension}
@@ -265,7 +271,9 @@ const Editor = () => {
                               e.target.getStage().container().style.cursor = 'pointer'
                             }}
                             onMouseLeave={(e) => {
-                              setHoveredTransitionId((prev) => (prev === transition.id ? null : prev))
+                              setHoveredTransitionId((prev) =>
+                                prev === transition.id ? null : prev,
+                              )
                               e.target.getStage().container().style.cursor = 'default'
                             }}
                           >
