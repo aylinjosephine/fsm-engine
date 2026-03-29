@@ -125,25 +125,26 @@ function ChooseTransitionLabelDFA() {
 }
 
 function ChooseTransitionLabelFreeStyle() {
+  const MAX_IO_BITS = 10
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
   const [inputValue, setInputValue] = useState('')
   const [outputValue, setOutputValue] = useState('')
 
   function keepAllowedSymbols(value) {
-    return value.replace(/[^01-]/g, '')
+    return value.replace(/[^01-]/g, '').slice(0, MAX_IO_BITS)
   }
 
   function isValidBits(value) {
-    return /^[01-]+$/.test(value)
+    return /^[01-]{1,10}$/.test(value)
   }
 
   useEffect(() => {
     const currentTransition = TransitionList[ActiveTransition]
     const rawLabel = currentTransition?.isDraft ? '' : (currentTransition?.label ?? '')
     const [input = '', output = ''] = String(rawLabel).split('/')
-    setInputValue(input)
-    setOutputValue(output)
+    setInputValue(keepAllowedSymbols(input))
+    setOutputValue(keepAllowedSymbols(output))
   }, [ActiveTransition, TransitionList])
 
   function handleCancel() {
@@ -164,6 +165,7 @@ function ChooseTransitionLabelFreeStyle() {
           value={inputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
+          maxLength={MAX_IO_BITS}
           pattern="[01-]*"
           onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value))}
           placeholder=""
@@ -175,6 +177,7 @@ function ChooseTransitionLabelFreeStyle() {
           value={outputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
+          maxLength={MAX_IO_BITS}
           pattern="[01-]*"
           onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value))}
           placeholder=""
