@@ -24,7 +24,7 @@ import {
 import { newProject, getTransitionPoints, HandleAutoLayout } from '../lib/editor'
 import { undo, redo } from '../lib/history'
 import { useSetAtom } from 'jotai'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { changeTransitionBitLengths } from '../lib/transitions'
 
 // Define the Components of the Dock
@@ -41,8 +41,24 @@ const Dock = () => {
   const [engineMode, setEngineMode] = useAtom(engine_mode)
   const [showLegend, setShowLegend] = useState(false)
   const [showBitMenu, setShowBitMenu] = useState(false)
+  const topDockRef = useRef(null)
   const transitionList = useAtomValue(transition_list)
   // Jotai Atoms
+
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (!showLegend && !showBitMenu) return
+      if (topDockRef.current && !topDockRef.current.contains(event.target)) {
+        setShowLegend(false)
+        setShowBitMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [showLegend, showBitMenu])
 
   const { inputBits, outputBits } = useMemo(() => {
     let maxInput = 1
@@ -109,13 +125,13 @@ const Dock = () => {
 
   return (
     <>
-      <div className="fixed top-3 right-3 z-40 select-none">
+      <div ref={topDockRef} className="fixed top-3 right-3 z-40 select-none">
         <div className="flex gap-2 justify-end">
           <button
             type="button"
             onClick={() => setShowLegend((prev) => !prev)}
             title="Legend"
-            className="text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-0.5 hover:scale-105 active:scale-95 transition-all ease-in-out"
+            className="appearance-none text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer active:scale-95 transition-all ease-in-out outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           >
             <CircleHelp stroke={iconFillColor} size={iconSize} />
           </button>
@@ -124,7 +140,7 @@ const Dock = () => {
             type="button"
             onClick={() => setShowBitMenu((prev) => !prev)}
             title="Settings"
-            className="text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-0.5 hover:scale-105 active:scale-95 transition-all ease-in-out"
+            className="appearance-none text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer active:scale-95 transition-all ease-in-out outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           >
             <Settings stroke={iconFillColor} size={iconSize} />
           </button>
@@ -238,7 +254,7 @@ const Dock = () => {
                 <div className="inline-flex items-center rounded-lg bg-secondary-bg border border-border-bg p-0.5 gap-0.5">
                   <button
                     type="button"
-                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    className="px-2.5 py-1 rounded-md font-github text-white transition-colors disabled:opacity-30"
                     disabled={inputBits <= 1}
                     onClick={() => changeTransitionBitLengths(-1, 0)}
                   >
@@ -249,7 +265,7 @@ const Dock = () => {
                   </span>
                   <button
                     type="button"
-                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    className="px-2.5 py-1 rounded-md font-github text-white transition-colors disabled:opacity-30"
                     disabled={inputBits >= 10}
                     onClick={() => changeTransitionBitLengths(1, 0)}
                   >
@@ -265,7 +281,7 @@ const Dock = () => {
                 <div className="inline-flex items-center rounded-lg bg-secondary-bg border border-border-bg p-0.5 gap-0.5">
                   <button
                     type="button"
-                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    className="px-2.5 py-1 rounded-md font-github text-white transition-colors disabled:opacity-30"
                     disabled={outputBits <= 1}
                     onClick={() => changeTransitionBitLengths(0, -1)}
                   >
@@ -276,7 +292,7 @@ const Dock = () => {
                   </span>
                   <button
                     type="button"
-                    className="px-2.5 py-1 rounded-md font-github text-white hover:bg-white/10 transition-colors disabled:opacity-30"
+                    className="px-2.5 py-1 rounded-md font-github text-white transition-colors disabled:opacity-30"
                     disabled={outputBits >= 10}
                     onClick={() => changeTransitionBitLengths(0, 1)}
                   >

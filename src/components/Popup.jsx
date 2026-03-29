@@ -189,6 +189,37 @@ function ChooseTransitionLabelFreeStyle() {
     setOutputValue('')
   }
 
+  function handleSubmit() {
+    const input = inputValue.trim()
+    const output = outputValue.trim()
+    const valid = isValidBits(input, inputBits) && isValidBits(output, outputBits)
+    const normalizedInput = input.replace(/-/g, 'x')
+    const normalizedOutput = output.replace(/-/g, 'x')
+
+    if (!valid) {
+      handleInvalidTransitionFallback(normalizedInput, normalizedOutput)
+      setInputValue('')
+      setOutputValue('')
+      return
+    }
+
+    handleTransitionSave([`${normalizedInput}/${normalizedOutput}`])
+    setInputValue('')
+    setOutputValue('')
+  }
+
+  function handleInputKeyDown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      handleSubmit()
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      handleCancel()
+    }
+  }
+
   return (
     <>
       <span className="w-full mb-2">
@@ -200,6 +231,7 @@ function ChooseTransitionLabelFreeStyle() {
           maxLength={inputBits}
           pattern="[01-]*"
           onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value, inputBits))}
+          onKeyDown={handleInputKeyDown}
           placeholder=""
         />
       </span>
@@ -212,6 +244,7 @@ function ChooseTransitionLabelFreeStyle() {
           maxLength={outputBits}
           pattern="[01-]*"
           onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
+          onKeyDown={handleInputKeyDown}
           placeholder=""
         />
       </span>
@@ -226,24 +259,7 @@ function ChooseTransitionLabelFreeStyle() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            const input = inputValue.trim()
-            const output = outputValue.trim()
-            const valid = isValidBits(input, inputBits) && isValidBits(output, outputBits)
-            const normalizedInput = input.replace(/-/g, 'x')
-            const normalizedOutput = output.replace(/-/g, 'x')
-
-            if (!valid) {
-              handleInvalidTransitionFallback(normalizedInput, normalizedOutput)
-              setInputValue('')
-              setOutputValue('')
-              return
-            }
-
-            handleTransitionSave([`${normalizedInput}/${normalizedOutput}`])
-            setInputValue('')
-            setOutputValue('')
-          }}
+          onClick={handleSubmit}
           className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
         >
           <CircleCheck size={18} color="#ffffff" />
