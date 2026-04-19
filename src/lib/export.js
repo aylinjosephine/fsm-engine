@@ -129,6 +129,12 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
   return transitionMap
 }
 
+function shouldRenderTransition(transition) {
+  if (!transition || typeof transition !== 'object') return false
+
+  return Number.isFinite(transition.to) && transition.to >= 0
+}
+
 function getRemovedTransitionIds(existingTransitions, transitionMap) {
   const nextIds = new Set(
     transitionMap.map((transition) => transition?.id).filter((id) => id != null),
@@ -216,22 +222,38 @@ function recomputeCommittedTransitionGeometry() {
 
 function normalizeTransitionForParent(transition) {
   const label = String(transition?.label ?? '')
+  const labelIsValid = /^[01x]+\/[01x]+$/.test(String(label).trim())
   const [inputFromLabel = '', outputFromLabel = ''] = label.split('/')
-  const input = String(transition?.input ?? inputFromLabel ?? '').replace(/-/g, 'x')
+  const hasExplicitInput = typeof transition?.input === 'string'
+  const hasExplicitOutput =
+    typeof transition?.output === 'string' || typeof transition?.mealy_output === 'string'
+  const hasExplicitToPattern = typeof transition?.toPattern === 'string'
+  const hasExplicitParentFields = hasExplicitInput || hasExplicitOutput || hasExplicitToPattern
+
+  const input = String(hasExplicitInput ? transition?.input : (inputFromLabel ?? '')).replace(
+    /-/g,
+    'x',
+  )
   const output = String(
-    transition?.output ?? transition?.mealy_output ?? outputFromLabel ?? '',
+    hasExplicitOutput
+      ? (transition?.output ?? transition?.mealy_output ?? '')
+      : (outputFromLabel ?? ''),
   ).replace(/-/g, 'x')
   const nodes = (store.get(node_list) ?? []).filter(Boolean)
   const maxIndex = Math.max(nodes.length - 1, 0)
   const stateBits = Math.max(maxIndex.toString(2).length, 1)
   const shouldBeUnresolved =
-    !!transition?.forceUnresolved || !/^[01x]+\/[01x]+$/.test(String(label).trim())
+    !!transition?.forceUnresolved || (!hasExplicitParentFields && !labelIsValid)
 
   return {
     id: transition?.id ?? 0,
     from: transition?.from ?? 0,
     to: shouldBeUnresolved ? -1 : (transition?.to ?? -1),
-    toPattern: shouldBeUnresolved ? 'x'.repeat(stateBits) : transition?.toPattern,
+    toPattern: shouldBeUnresolved
+      ? 'x'.repeat(stateBits)
+      : typeof transition?.toPattern === 'string'
+        ? String(transition.toPattern).replace(/-/g, 'x')
+        : transition?.toPattern,
     input,
     output,
     mealy_output: output,
@@ -354,8 +376,7 @@ window.addEventListener('message', (event) => {
 
   const existingTransitions = store.get(transition_list) ?? []
   const renderableTransitions = transitions.filter((t) => {
-    if (!t || typeof t !== 'object') return false
-    if (typeof t.toPattern === 'string' && t.toPattern.length > 0) return false
+    if (!shouldRenderTransition(t)) return false
 
     const fromExists = nodeAtoms.some((n) => n && n.id === t.from)
     const toExists = nodeAtoms.some((n) => n && n.id === t.to)
