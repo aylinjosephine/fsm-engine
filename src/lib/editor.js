@@ -19,7 +19,7 @@ import {
   store,
   transition_list,
   transition_pairs,
-  confirm_dialog_atom,
+  shortcut_context_locked,
 } from './stores'
 import { addToHistory, undo, redo, clearHistory } from './history'
 import { sendExportToMainState } from './export'
@@ -284,42 +284,82 @@ export function HandleStateDrag(e, id) {
 }
 
 export function handleShortCuts(key) {
-  const keyBindings = ['Add', 'Remove', 'Connect']
+  const currentEditorState = store.get(editor_state)
 
-  /*
-	Key Bindings as follows:
-	1 -> Pan,
-	2 -> Add,
-	3 -> Remove,
-	...
-  */
+  if (['Controls', 'Guide', 'Save FSM', 'settings'].includes(currentEditorState)) {
+    return
+  }
 
-  if ((key === 'z' || key === 'Z') && store.get(editor_state) !== 'Controls') {
+  if (store.get(show_popup) || store.get(shortcut_context_locked)) {
+    return
+  }
+
+  if (key === 's' || key === 'S') {
+    let circleId = store.get(node_list).length
+    if (store.get(deleted_nodes).length > 0) {
+      circleId = store.get(deleted_nodes)[0]
+      store.set(deleted_nodes, (prev) => {
+        const next = [...prev]
+        next.shift()
+        return next
+      })
+    }
+
+    const existing = store.get(node_list).filter(Boolean)
+    const nextIndex = existing.length
+    const col = nextIndex % 6
+    const row = Math.floor(nextIndex / 6)
+    const baseX = 150
+    const baseY = 120
+    const dx = 140
+    const dy = 160
+
+    const circle = makeCircle(
+      {
+        x: baseX + col * dx,
+        y: baseY + row * dy,
+      },
+      circleId,
+    )
+
+    const nodesCopy = store.get(node_list).slice()
+    if (circleId !== nodesCopy.length) {
+      nodesCopy[circleId] = circle
+    } else {
+      if (circleId === 0 && store.get(initial_state) == null) {
+        store.set(initial_state, () => 0)
+      }
+      nodesCopy.push(circle)
+    }
+
+    store.set(node_list, () => nodesCopy)
+    store.set(editor_state, () => 'Add')
+    addToHistory()
+    return
+  }
+
+  if (key === 'a' || key === 'A') {
+    store.set(editor_state, () => 'Auto Layout')
+    HandleAutoLayout()
+    return
+  }
+
+  if (key === 'z' || key === 'Z') {
+    store.set(editor_state, () => 'Undo')
     undo(getTransitionPoints)
     return
   }
 
-  if ((key === 'y' || key === 'Y') && store.get(editor_state) !== 'Controls') {
-    redo(getTransitionPoints)
+  if (key === 'r' || key === 'R') {
+    store.set(editor_state, () => 'Remove')
+    undo(getTransitionPoints)
     return
   }
 
-  if (
-    !store.get(show_popup) &&
-    !['Controls', 'Guide', 'Save FSM'].includes(store.get(editor_state)) &&
-    key - 1 < keyBindings.length
-  ) {
-    if (key == 1) {
-      store.set(confirm_dialog_atom, {
-        isOpen: true,
-        message: 'Are you sure you want to start a new project? Any unsaved work will be lost!',
-        onConfirm: () => {
-          newProject()
-        },
-      })
-      return
-    }
-    store.set(editor_state, (_) => keyBindings[key - 1])
+  if (key === 'y' || key === 'Y') {
+    store.set(editor_state, () => 'Redo')
+    redo(getTransitionPoints)
+    return
   }
 }
 

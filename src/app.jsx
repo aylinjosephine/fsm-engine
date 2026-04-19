@@ -41,6 +41,16 @@ export function App() {
 
   useEffect(() => {
     const handleKeyPress = (event) => {
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
       handleShortCuts(event.key)
     }
 

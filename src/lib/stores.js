@@ -6,7 +6,7 @@ import { atom, createStore } from 'jotai'
 export const stage_ref = atom(null)
 
 // Global Store to hold value of Konva Stage ref
-export const editor_state = atom('Guide')
+export const editor_state = atom(null)
 
 // Global Store to hold value of Konva Layer ref
 export const layer_ref = atom(null)
@@ -79,6 +79,9 @@ export const contributors_data = atom(null)
 
 // Store to toggle Transition Table visibility
 export const show_transition_table = atom(false)
+
+// Store to disable keyboard shortcuts while dock menus are open
+export const shortcut_context_locked = atom(false)
 
 // Store for Confirm Dialog
 export const confirm_dialog_atom = atom({

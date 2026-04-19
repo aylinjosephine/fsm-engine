@@ -2,7 +2,6 @@ import { useAtom, useAtomValue } from 'jotai'
 import {
   BookHeart,
   Cable,
-  CircleHelp,
   FilePlus,
   ImageDown,
   MinusCircleIcon,
@@ -20,6 +19,7 @@ import {
   confirm_dialog_atom,
   engine_mode,
   transition_list,
+  shortcut_context_locked,
 } from '../lib/stores'
 import { newProject, getTransitionPoints, HandleAutoLayout } from '../lib/editor'
 import { undo, redo } from '../lib/history'
@@ -38,6 +38,7 @@ const Dock = () => {
   const [editorState, setEditorState] = useAtom(editor_state)
   const [_transitionPairs, setTransitionPairs] = useAtom(transition_pairs)
   const setConfirmDialog = useSetAtom(confirm_dialog_atom)
+  const setShortcutContextLocked = useSetAtom(shortcut_context_locked)
   const [engineMode, setEngineMode] = useAtom(engine_mode)
   const [showLegend, setShowLegend] = useState(false)
   const [showBitMenu, setShowBitMenu] = useState(false)
@@ -46,6 +47,8 @@ const Dock = () => {
   // Jotai Atoms
 
   useEffect(() => {
+    setShortcutContextLocked(showLegend || showBitMenu)
+
     function handleOutsideClick(event) {
       if (!showLegend && !showBitMenu) return
       if (topDockRef.current && !topDockRef.current.contains(event.target)) {
@@ -58,7 +61,7 @@ const Dock = () => {
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
     }
-  }, [showLegend, showBitMenu])
+  }, [showLegend, showBitMenu, setShortcutContextLocked])
 
   const { inputBits, outputBits } = useMemo(() => {
     let maxInput = 1
@@ -133,7 +136,16 @@ const Dock = () => {
             title="Legend"
             className="appearance-none text-white flex justify-center items-center bg-secondary-bg h-9 w-9 border border-border-bg rounded-lg cursor-pointer active:scale-95 transition-all ease-in-out outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           >
-            <CircleHelp stroke={iconFillColor} size={iconSize} />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="white"
+              aria-hidden="true"
+            >
+              <path d="M 12 2 C 6.4889971 2 2 6.4889971 2 12 C 2 17.511003 6.4889971 22 12 22 C 17.511003 22 22 17.511003 22 12 C 22 6.4889971 17.511003 2 12 2 z M 12 4 C 16.430123 4 20 7.5698774 20 12 C 20 16.430123 16.430123 20 12 20 C 7.5698774 20 4 16.430123 4 12 C 4 7.5698774 7.5698774 4 12 4 z M 11 7 L 11 9 L 13 9 L 13 7 L 11 7 z M 11 11 L 11 17 L 13 17 L 13 11 L 11 11 z" />
+            </svg>
           </button>
 
           <button
@@ -225,17 +237,56 @@ const Dock = () => {
               </div>
 
               <div className="flex gap-2 items-center">
-                <svg width="24" height="10" viewBox="0 0 28 12" aria-hidden="true">
-                  <line x1="5" y1="6" x2="22" y2="6" stroke="#6b7280" strokeWidth="2" />
-                  <polygon points="22,3 27,6 22,9" fill="#6b7280" />
-                  <circle cx="4" cy="6" r="2.3" fill="#6b7280" stroke="#ffffff50" strokeWidth="1" />
-                </svg>
+                <div className="px-2.5 py-1 rounded-md border border-border-bg bg-secondary-bg text-white font-mono text-[10px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+                  s
+                </div>
                 <div className="flex flex-col">
-                  <span className="text-white text-sm">Initial state</span>
+                  <span className="text-white text-sm">Add state</span>
                   <span className="text-white/60 text-xs">
-                    The grey arrow with the point on one end marks the start state. It does not
-                    represent a transition.{' '}
+                    Adds a new state with automatic placement and keeps Add mode active.
                   </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <div className="px-2.5 py-1 rounded-md border border-border-bg bg-secondary-bg text-white font-mono text-[10px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+                  z
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white text-sm">Undo</span>
+                  <span className="text-white/60 text-xs">Undo the last change.</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <div className="px-2.5 py-1 rounded-md border border-border-bg bg-secondary-bg text-white font-mono text-[10px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+                  r
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white text-sm">Remove (shortcut mode)</span>
+                  <span className="text-white/60 text-xs">
+                    Marks Remove as active and runs undo in background.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <div className="px-2.5 py-1 rounded-md border border-border-bg bg-secondary-bg text-white font-mono text-[10px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+                  y
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white text-sm">Redo</span>
+                  <span className="text-white/60 text-xs">Redo the last reverted change.</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <div className="px-2.5 py-1 rounded-md border border-border-bg bg-secondary-bg text-white font-mono text-[10px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.35)]">
+                  a
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white text-sm">Auto layout</span>
+                  <span className="text-white/60 text-xs">Rearrange the graph automatically.</span>
                 </div>
               </div>
             </div>
