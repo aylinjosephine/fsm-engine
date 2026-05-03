@@ -16,7 +16,7 @@ import {
   stage_ref,
   transition_list,
   current_selected,
-  automaton_type,
+  fsm_type,
 } from '../lib/stores'
 import { handleTransitionClick } from '../lib/transitions'
 
@@ -28,7 +28,7 @@ const Editor = () => {
   const [transitionList, _setTransitionList] = useAtom(transition_list)
   const [_layerRef, setLayerRef] = useAtom(layer_ref)
   const currentSelected = useAtomValue(current_selected)
-  const automatonType = useAtomValue(automaton_type)
+  const fsmType = useAtomValue(fsm_type)
   const [hoveredStateId, setHoveredStateId] = useState(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
   const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Controls', 'Guide'])
@@ -125,8 +125,8 @@ const Editor = () => {
                       fill="#ffffff"
                       align="center"
                     />
-                    {/* if automaton is moore, show output on node*/}
-                    {automatonType === 'moore' && (
+                    {/* if fsm is moore, show output on node*/}
+                    {fsmType === 'moore' && (
                       <Text
                         x={-circle.radius - circle.moore_output.length / 2}
                         y={0}

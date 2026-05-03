@@ -27,7 +27,7 @@ export const node_list = atom([])
     intermediate: boolean,
     final: boolean,
   },
-  moore_output: string, // Moore output for this state (used if automaton_type === 'moore')
+  moore_output: string, // Moore output for this state (used if fsm_type === 'moore')
   transitions: Array<{
     from: number,
     to: number,
@@ -57,9 +57,9 @@ export const initial_state = atom(null)
 // Keep track of the two states that are clicked on when in Connect Mode
 export const transition_pairs = atom(null)
 
-// NEW: Keep track of Automaton Type which has been set in project
-// AutomatonType = 'mealy' | 'moore'
-export const automaton_type = atom('mealy')
+// NEW: Keep track of Fsm Type which has been set in project
+// FsmType = 'mealy' | 'moore'
+export const fsm_type = atom('mealy')
 
 // Alert Message
 export const alert = atom('')

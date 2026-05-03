@@ -11,7 +11,7 @@ import {
   deleted_nodes,
   editor_state,
   engine_mode,
-  automaton_type,
+  fsm_type,
   initial_state,
   node_list,
   show_popup,
@@ -195,7 +195,7 @@ export function HandleStateClick(e, id) {
       addToHistory()
 
       // Open Popup for labeling
-      if (store.get(automaton_type) !== 'Free Style') {
+      if (store.get(fsm_type) !== 'Free Style') {
         store.set(active_transition, () => tr_id)
         store.set(show_popup, true)
       }

@@ -1,12 +1,5 @@
 // import { getDefaultStore } from 'jotai'
-import {
-  node_list,
-  transition_list,
-  automaton_type,
-  initial_state,
-  stage_ref,
-  store,
-} from './stores'
+import { node_list, transition_list, fsm_type, initial_state, stage_ref, store } from './stores'
 import { getTransitionPoints } from './editor'
 
 let updateFromState = false
@@ -267,7 +260,7 @@ export function extractFsmData() {
   const transitions = (store.get(transition_list) ?? []).filter(
     (transition) => transition && !transition.isDraft,
   )
-  const automatonType = store.get(automaton_type) ?? 'mealy'
+  const fsmType = store.get(fsm_type) ?? 'mealy'
   const nodeIds = new Set(definedNodes.map((n) => n?.id).filter((id) => id != null))
 
   const visibleTransitions = transitions.map((t) => normalizeTransitionForParent(t))
@@ -294,7 +287,7 @@ export function extractFsmData() {
       moore_output: n.moore_output ?? '',
     })),
     transitions: [...visibleTransitions, ...preservedUnresolvedTransitions],
-    automatonType,
+    fsmType,
   }
 }
 
@@ -305,18 +298,18 @@ export function sendExportToMainState() {
   window.parent.postMessage({ action: 'export', fsm }, getTrustedOrigin())
 }
 
-// import of state table data as automaton state data
+// import of state table data as fsm state data
 // NEW: tried to make auto layout look like the fsm layout
 window.addEventListener('message', (event) => {
   if (!isTrustedParentMessage(event)) return
-  if (event.data?.action !== 'automatonimport') return
+  if (event.data?.action !== 'fsmimport') return
 
   const fsm = event.data.fsm
   if (!fsm) return
 
   const states = fsm.states ?? []
   const transitions = fsm.transitions ?? []
-  const { automatonType = 'mealy' } = fsm
+  const { fsmType = 'mealy' } = fsm
 
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
@@ -394,7 +387,7 @@ window.addEventListener('message', (event) => {
 
   // Force a deterministic remount of transition shapes after each import update.
   store.set(transition_list, [])
-  store.set(automaton_type, automatonType)
+  store.set(fsm_type, fsmType)
   requestAnimationFrame(() => {
     removeRenderedTransitions(removedTransitionIds)
     store.set(transition_list, transitionAtoms)
