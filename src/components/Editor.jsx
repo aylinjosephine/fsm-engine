@@ -144,7 +144,7 @@ const Editor = () => {
                     {/* arrow is now rendered top-level for drag support */}
 
                     {/* If state is final, draw an extra outer circle */}
-                    {circle.type.final && (
+                    {/*circle.type.final && (
                       <Circle
                         x={0}
                         y={0}
@@ -157,7 +157,7 @@ const Editor = () => {
                             : circle.fill
                         }
                       />
-                    )}
+                    )*/}
                   </Group>
                 ),
             )
