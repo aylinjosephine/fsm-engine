@@ -161,7 +161,7 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
         label: paddedLabel,
         isDraft: false,
         to: -1,
-        toPattern: unresolvedPattern,
+        toBinaryId: unresolvedPattern,
         forceUnresolved: true,
       }
     }

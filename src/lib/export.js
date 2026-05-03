@@ -220,8 +220,8 @@ function normalizeTransitionForParent(transition) {
   const hasExplicitInput = typeof transition?.input === 'string'
   const hasExplicitOutput =
     typeof transition?.output === 'string' || typeof transition?.mealy_output === 'string'
-  const hasExplicitToPattern = typeof transition?.toPattern === 'string'
-  const hasExplicitParentFields = hasExplicitInput || hasExplicitOutput || hasExplicitToPattern
+  const hasExplicittoBinaryId = typeof transition?.toBinaryId === 'string'
+  const hasExplicitParentFields = hasExplicitInput || hasExplicitOutput || hasExplicittoBinaryId
 
   const input = String(hasExplicitInput ? transition?.input : (inputFromLabel ?? '')).replace(
     /-/g,
@@ -242,11 +242,11 @@ function normalizeTransitionForParent(transition) {
     id: transition?.id ?? 0,
     from: transition?.from ?? 0,
     to: shouldBeUnresolved ? -1 : (transition?.to ?? -1),
-    toPattern: shouldBeUnresolved
+    toBinaryId: shouldBeUnresolved
       ? 'x'.repeat(stateBits)
-      : typeof transition?.toPattern === 'string'
-        ? String(transition.toPattern).replace(/-/g, 'x')
-        : transition?.toPattern,
+      : typeof transition?.toBinaryId === 'string'
+        ? String(transition.toBinaryId).replace(/-/g, 'x')
+        : transition?.toBinaryId,
     input,
     output,
     mealy_output: output,
@@ -272,7 +272,7 @@ export function extractFsmData() {
       if (visibleTransitionIds.has(t.id)) return false
       if (visibleTransitionKeys.has(`${t.from}:${t.input}`)) return false
       if (!nodeIds.has(t.from)) return false
-      if (typeof t.toPattern === 'string' && t.toPattern.length > 0) return true
+      if (typeof t.toBinaryId === 'string' && t.toBinaryId.length > 0) return true
       return nodeIds.has(t.to)
     })
 
