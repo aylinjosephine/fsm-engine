@@ -16,19 +16,63 @@ import { sendExportToMainState } from './export'
 const MIN_IO_BITS = 1
 const MAX_IO_BITS = 10
 
+function getTransitionGroupId(transition) {
+  return transition?.groupId ?? transition?.id ?? 0
+}
+
+function normalizeBitsPattern(value) {
+  return String(value ?? '').trim().replace(/-/g, 'x')
+}
+
+function patternsOverlap(leftPattern, rightPattern) {
+  const left = normalizeBitsPattern(leftPattern)
+  const right = normalizeBitsPattern(rightPattern)
+  const length = Math.max(left.length, right.length)
+  const paddedLeft = left.padEnd(length, 'x').slice(0, length)
+  const paddedRight = right.padEnd(length, 'x').slice(0, length)
+
+  for (let index = 0; index < length; index += 1) {
+    const leftBit = paddedLeft.charAt(index)
+    const rightBit = paddedRight.charAt(index)
+    if (leftBit !== 'x' && rightBit !== 'x' && leftBit !== rightBit) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function getInputFromLabel(label) {
+  const [input = ''] = String(label ?? '').split('/')
+  return normalizeBitsPattern(input)
+}
+
+function getOutputFromLabel(label) {
+  const [, output = ''] = String(label ?? '').split('/')
+  return normalizeBitsPattern(output)
+}
+
 export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list)[id]
   if (!transitionEntry) return false
 
   const from_state = transitionEntry.from
   const to_state = transitionEntry.to
+  const targetGroupId = getTransitionGroupId(transitionEntry)
+  const transitionIds = (store.get(transition_list) ?? [])
+    .map((transition, index) => (transition && getTransitionGroupId(transition) === targetGroupId ? index : -1))
+    .filter((transitionId) => transitionId >= 0)
 
-  const transition = store.get(stage_ref).findOne(`#tr_${id}`)
-  transition?.destroy()
+  transitionIds.forEach((transitionId) => {
+    const transition = store.get(stage_ref).findOne(`#tr_${transitionId}`)
+    transition?.destroy()
+  })
 
   store.set(transition_list, (old) => {
     const newTrList = [...old]
-    newTrList[id] = undefined
+    transitionIds.forEach((transitionId) => {
+      newTrList[transitionId] = undefined
+    })
     return newTrList
   })
 
@@ -38,14 +82,16 @@ export function removeTransitionById(id) {
     if (newNodes[from_state]) {
       newNodes[from_state] = {
         ...newNodes[from_state],
-        transitions: newNodes[from_state].transitions.filter((tr) => tr.id !== id),
+        transitions: newNodes[from_state].transitions.filter(
+          (tr) => !transitionIds.includes(tr.id),
+        ),
       }
     }
 
     if (from_state !== to_state && newNodes[to_state]) {
       newNodes[to_state] = {
         ...newNodes[to_state],
-        transitions: newNodes[to_state].transitions.filter((tr) => tr.id !== id),
+        transitions: newNodes[to_state].transitions.filter((tr) => !transitionIds.includes(tr.id)),
       }
     }
     return newNodes
@@ -193,6 +239,10 @@ export function handleTransitionSave(labels) {
   const activeTransition = store.get(transition_list)[active_tr]
   if (!activeTransition) return
   const src_node = activeTransition.from
+  const groupId = getTransitionGroupId(activeTransition)
+  const groupTransitionIds = (store.get(transition_list) ?? [])
+    .map((transition, index) => (transition && getTransitionGroupId(transition) === groupId ? index : -1))
+    .filter((transitionId) => transitionId >= 0)
 
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim().replace(/-/g, 'x'))
@@ -203,6 +253,23 @@ export function handleTransitionSave(labels) {
       setTimeout(() => store.set(alert, ''), 3500)
       return
     }
+  }
+
+  const nextLabel = stringLabels[0] ?? ''
+  const nextInput = getInputFromLabel(nextLabel)
+  const nextOutput = getOutputFromLabel(nextLabel)
+  const duplicateExists = (store.get(transition_list) ?? []).some((transition, index) => {
+    if (!transition || index === active_tr) return false
+    if (transition.from !== src_node) return false
+    if (getTransitionGroupId(transition) === groupId) return false
+    return patternsOverlap(nextInput, getInputFromLabel(transition.label))
+  })
+
+  if (duplicateExists) {
+    store.set(show_popup, false)
+    store.set(alert, 'This input overlaps with an existing transition from the same state.')
+    setTimeout(() => store.set(alert, ''), 3500)
+    return
   }
 
   if (automata_type === 'DFA') {
@@ -240,29 +307,35 @@ export function handleTransitionSave(labels) {
 
   store.set(transition_list, (old) => {
     const newTrList = [...old]
-    if (newTrList[active_tr]) {
-      newTrList[active_tr] = {
-        ...newTrList[active_tr],
-        label: stringLabels[0] ?? '', // Sort them before updating labels
+    groupTransitionIds.forEach((transitionId) => {
+      if (!newTrList[transitionId]) return
+      newTrList[transitionId] = {
+        ...newTrList[transitionId],
+        label: nextLabel,
+        input: nextInput,
+        output: nextOutput,
+        mealyOutput: nextOutput,
         isDraft: false,
       }
-    }
+    })
     return newTrList
   })
 
-  // Update labels + position in UI (NEW: not casted to string, because unnecessary, nicer layout with space)
-  const displayText = store.get(stage_ref).findOne(`#trtext_${active_tr}`)
-  const labelShape = store.get(stage_ref).findOne(`#tr_label${active_tr}`)
+  // Update labels + position in UI for the whole logical transition group.
+  const labelText = nextLabel.replace(/x/g, '-')
 
-  const rawLabelText = stringLabels[0] ?? ''
-  const labelText = rawLabelText.replace(/x/g, '-')
+  groupTransitionIds.forEach((transitionId) => {
+    const displayText = store.get(stage_ref).findOne(`#trtext_${transitionId}`)
+    const labelShape = store.get(stage_ref).findOne(`#tr_label${transitionId}`)
+    const transition = store.get(transition_list)[transitionId]
 
-  if (displayText) displayText.text(labelText)
-  if (labelShape) {
-    const points = store.get(transition_list)[active_tr].points
-    labelShape.x(points[2] - 2 * labelText.length)
-    labelShape.y(points[3] - 10)
-  }
+    if (displayText) displayText.text(labelText)
+    if (labelShape && transition) {
+      const points = transition.points
+      labelShape.x(points[2] - 2 * labelText.length)
+      labelShape.y(points[3] - 10)
+    }
+  })
 
   const { maxInput, maxOutput } = getEditorBitLengths()
 

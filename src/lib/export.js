@@ -13,6 +13,121 @@ function isTrustedParentMessage(event) {
   return event.origin === getTrustedOrigin() && event.source === window.parent
 }
 
+function normalizePatternBits(value, length, fill = 'x', align = 'left') {
+  const source = String(value ?? '').replace(/-/g, 'x')
+  if (length <= 0) return ''
+  if (source.length >= length) {
+    return align === 'left' ? source.slice(-length) : source.slice(0, length)
+  }
+  return align === 'left' ? source.padStart(length, fill) : source.padEnd(length, fill)
+}
+
+function resolveNodeIdByBinary(nodes, binaryId, nodeBitCount) {
+  const normalized = normalizePatternBits(binaryId, nodeBitCount, 'x', 'left')
+  if (!/^[01]+$/.test(normalized)) return -1
+
+  const match = nodes.find((node) => {
+    if (!node?.id && node?.id !== 0) return false
+    const nodeBinary = Number(node.id).toString(2).padStart(nodeBitCount, '0')
+    return nodeBinary === normalized
+  })
+
+  return match?.id ?? -1
+}
+
+function expandDontCares(pattern) {
+  const normalized = String(pattern ?? '').replace(/-/g, 'x')
+  if (!normalized) return []
+
+  const expanded = []
+  const walk = (current, index) => {
+    if (index >= normalized.length) {
+      expanded.push(current)
+      return
+    }
+
+    const bit = normalized.charAt(index).toLowerCase()
+    if (bit === 'x') {
+      walk(`${current}0`, index + 1)
+      walk(`${current}1`, index + 1)
+      return
+    }
+
+    walk(`${current}${bit}`, index + 1)
+  }
+
+  walk('', 0)
+  return expanded
+}
+
+function mergeBitPatterns(patterns, fallbackLength) {
+  const normalizedPatterns = patterns.filter((pattern) => typeof pattern === 'string')
+  const length = Math.max(
+    fallbackLength,
+    ...normalizedPatterns.map((pattern) => pattern.length),
+  )
+
+  if (length <= 0) return ''
+  if (!normalizedPatterns.length) return 'x'.repeat(length)
+
+  const paddedPatterns = normalizedPatterns.map((pattern) =>
+    normalizePatternBits(pattern, length, 'x', 'left'),
+  )
+
+  return Array.from({ length }, (_, index) => {
+    const bit = paddedPatterns[0]?.charAt(index) ?? 'x'
+    return paddedPatterns.every((pattern) => pattern.charAt(index) === bit) ? bit : 'x'
+  }).join('')
+}
+
+function getTransitionGroupKey(transition) {
+  return transition?.groupId ?? transition?.id ?? 0
+}
+
+function getTransitionTargetPattern(transition, nodeBitCount, definedNodes) {
+  if (typeof transition?.toBinaryId === 'string') {
+    return normalizePatternBits(transition.toBinaryId, nodeBitCount, 'x', 'left')
+  }
+
+  if (Number.isFinite(transition?.to) && transition.to >= 0) {
+    const nodeBinary = Number(transition.to).toString(2).padStart(nodeBitCount, '0')
+    const resolved = resolveNodeIdByBinary(definedNodes, nodeBinary, nodeBitCount)
+    return resolved >= 0 ? nodeBinary : 'x'.repeat(nodeBitCount)
+  }
+
+  return 'x'.repeat(nodeBitCount)
+}
+
+function collapseTransitionsForExport(transitions, definedNodes) {
+  const nodeBitCount = definedNodes.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(definedNodes.length)))
+  const groups = new Map()
+
+  transitions.forEach((transition) => {
+    const key = String(getTransitionGroupKey(transition))
+    const bucket = groups.get(key) ?? []
+    bucket.push(transition)
+    groups.set(key, bucket)
+  })
+
+  return Array.from(groups.values()).map((group) => {
+    const representative = group[0]
+    const mergedToBinaryId = mergeBitPatterns(
+      group.map((transition) => getTransitionTargetPattern(transition, nodeBitCount, definedNodes)),
+      nodeBitCount,
+    )
+    const resolvedTo = /^[01]+$/.test(mergedToBinaryId)
+      ? resolveNodeIdByBinary(definedNodes, mergedToBinaryId, nodeBitCount)
+      : -1
+
+    return normalizeTransitionForParent({
+      ...representative,
+      id: representative?.groupId ?? representative?.id ?? 0,
+      to: resolvedTo,
+      toBinaryId: mergedToBinaryId,
+    })
+  })
+}
+
 function buildNodeMap(nodes) {
   const nodeMap = []
   nodes.forEach((node) => {
@@ -56,6 +171,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
     const existing =
       existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
     const output = t.output ?? t.mealy_output ?? ''
+    const groupId = t.groupId ?? existing?.groupId ?? t.id
 
     const labelFromParent =
       typeof t.input === 'string' && typeof output === 'string'
@@ -65,12 +181,16 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
     const draft = existing
       ? {
           ...existing,
+          groupId,
+          toBinaryId: t.toBinaryId ?? existing.toBinaryId,
           label: labelFromParent,
           from: t.from,
           to: t.to,
         }
       : {
           id: t.id,
+          groupId,
+          toBinaryId: t.toBinaryId,
           from: t.from,
           to: t.to,
           label: labelFromParent,
@@ -261,9 +381,7 @@ export function extractFsmData() {
     (transition) => transition && !transition.isDraft,
   )
   const fsmType = store.get(fsm_type) ?? 'mealy'
-  const nodeIds = new Set(definedNodes.map((n) => n?.id).filter((id) => id != null))
-
-  const visibleTransitions = transitions.map((t) => normalizeTransitionForParent(t))
+  const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
   const visibleTransitionIds = new Set(visibleTransitions.map((t) => t.id))
   const visibleTransitionKeys = new Set(visibleTransitions.map((t) => `${t.from}:${t.input}`))
   const preservedUnresolvedTransitions = unresolvedTransitions
@@ -271,9 +389,9 @@ export function extractFsmData() {
     .filter((t) => {
       if (visibleTransitionIds.has(t.id)) return false
       if (visibleTransitionKeys.has(`${t.from}:${t.input}`)) return false
-      if (!nodeIds.has(t.from)) return false
+      if (!definedNodes.some((node) => node?.id === t.from)) return false
       if (typeof t.toBinaryId === 'string' && t.toBinaryId.length > 0) return true
-      return nodeIds.has(t.to)
+      return definedNodes.some((node) => node?.id === t.to)
     })
 
   return {
@@ -313,6 +431,8 @@ window.addEventListener('message', (event) => {
 
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
+  const nodeBitCount = states.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(states.length)))
+  let nextTransitionId = 0
 
   states.forEach((s, index) => {
     const existing = existingNodes[s.id]
@@ -368,14 +488,64 @@ window.addEventListener('message', (event) => {
   store.set(initial_state, initialNode?.id ?? null)
 
   const existingTransitions = store.get(transition_list) ?? []
-  const renderableTransitions = transitions.filter((t) => {
-    if (!shouldRenderTransition(t)) return false
+  const renderableTransitions = []
+  unresolvedTransitions = []
 
-    const fromExists = nodeAtoms.some((n) => n && n.id === t.from)
-    const toExists = nodeAtoms.some((n) => n && n.id === t.to)
-    return fromExists && toExists
+  transitions.forEach((transition) => {
+    const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+    const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+    const targetPattern = normalizePatternBits(
+      transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+      nodeBitCount,
+      'x',
+      'left',
+    )
+    const concreteTargets = expandDontCares(targetPattern)
+
+    if (concreteTargets.length > 0) {
+      const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+      if (fromExists) {
+        concreteTargets.forEach((binaryTarget) => {
+          const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
+          if (resolvedTo < 0) return
+
+          renderableTransitions.push({
+            ...transition,
+            id: nextTransitionId++,
+            groupId: transition.groupId ?? transition.id ?? 0,
+            from: transition.from,
+            to: resolvedTo,
+            toBinaryId: binaryTarget,
+            input: baseLabelInput,
+            output: baseLabelOutput,
+            mealy_output: baseLabelOutput,
+            label:
+              typeof transition.label === 'string'
+                ? transition.label
+                : `${baseLabelInput}/${baseLabelOutput}`,
+            isDraft: false,
+          })
+        })
+        return
+      }
+    }
+
+    if (shouldRenderTransition(transition)) {
+      const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+      const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
+      if (fromExists && toExists) {
+        renderableTransitions.push({
+          ...transition,
+          id: nextTransitionId++,
+          groupId: transition.groupId ?? transition.id ?? 0,
+        })
+        return
+      }
+    }
+
+    unresolvedTransitions.push(transition)
   })
-  unresolvedTransitions = transitions.filter((t) => !renderableTransitions.includes(t))
+
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
   updateFromState = true

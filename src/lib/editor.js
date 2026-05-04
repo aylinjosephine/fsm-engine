@@ -26,6 +26,104 @@ import { sendExportToMainState } from './export'
 import dagre from 'dagre'
 import Konva from 'konva'
 
+function getNodeBitCount(nodes) {
+  const nodeCount = (nodes || []).filter(Boolean).length
+  return nodeCount <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(Math.max(1, nodeCount))))
+}
+
+function normalizePatternBits(value, length, fill = 'x', align = 'left') {
+  const source = String(value ?? '').replace(/-/g, 'x')
+  if (length <= 0) return ''
+  if (source.length >= length) {
+    return align === 'left' ? source.slice(-length) : source.slice(0, length)
+  }
+  return align === 'left' ? source.padStart(length, fill) : source.padEnd(length, fill)
+}
+
+function expandDontCares(pattern) {
+  const normalized = String(pattern ?? '').replace(/-/g, 'x')
+  if (!normalized) return []
+
+  const expanded = []
+  const walk = (current, index) => {
+    if (index >= normalized.length) {
+      expanded.push(current)
+      return
+    }
+
+    const bit = normalized.charAt(index).toLowerCase()
+    if (bit === 'x') {
+      walk(`${current}0`, index + 1)
+      walk(`${current}1`, index + 1)
+      return
+    }
+
+    walk(`${current}${bit}`, index + 1)
+  }
+
+  walk('', 0)
+  return expanded
+}
+
+function resolveNodeIdByBinary(nodes, binaryId, nodeBitCount) {
+  const normalized = normalizePatternBits(binaryId, nodeBitCount, 'x', 'left')
+  if (!/^[01]+$/.test(normalized)) return -1
+
+  const match = (nodes || []).find((node) => {
+    if (!node) return false
+    const nodeBinary = Number(node.id).toString(2).padStart(nodeBitCount, '0')
+    return nodeBinary === normalized
+  })
+
+  return match?.id ?? -1
+}
+
+function expandTransitionForEditor(transition, nodes, nodeBitCount) {
+  if (!transition) return []
+
+  const groupId = transition.groupId ?? transition.id ?? 0
+  const labelInput = String(transition.input ?? '').replace(/-/g, 'x')
+  const labelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+  const label = `${labelInput}/${labelOutput}`
+  const targetPattern = normalizePatternBits(
+    transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+    nodeBitCount,
+    'x',
+    'left',
+  )
+  const concreteTargets = expandDontCares(targetPattern)
+
+  if (!concreteTargets.length) {
+    return transition.to >= 0
+      ? [
+          {
+            ...transition,
+            groupId,
+            label,
+            input: labelInput,
+            output: labelOutput,
+            mealy_output: labelOutput,
+          },
+        ]
+      : []
+  }
+
+  return concreteTargets
+    .map((binaryTarget) => resolveNodeIdByBinary(nodes, binaryTarget, nodeBitCount))
+    .filter((targetId) => targetId >= 0)
+    .map((targetId, index) => ({
+      ...transition,
+      groupId,
+      label,
+      input: labelInput,
+      output: labelOutput,
+      mealy_output: labelOutput,
+      to: targetId,
+      toBinaryId: concreteTargets[index],
+      isDraft: false,
+    }))
+}
+
 // Handler function for dropping the initial arrow handle onto a state
 export function handleInitialArrowDrop(dropX, dropY) {
   const nodes = store.get(node_list)
