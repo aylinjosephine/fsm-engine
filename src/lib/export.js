@@ -62,10 +62,7 @@ function expandDontCares(pattern) {
 
 function mergeBitPatterns(patterns, fallbackLength) {
   const normalizedPatterns = patterns.filter((pattern) => typeof pattern === 'string')
-  const length = Math.max(
-    fallbackLength,
-    ...normalizedPatterns.map((pattern) => pattern.length),
-  )
+  const length = Math.max(fallbackLength, ...normalizedPatterns.map((pattern) => pattern.length))
 
   if (length <= 0) return ''
   if (!normalizedPatterns.length) return 'x'.repeat(length)
@@ -99,7 +96,8 @@ function getTransitionTargetPattern(transition, nodeBitCount, definedNodes) {
 }
 
 function collapseTransitionsForExport(transitions, definedNodes) {
-  const nodeBitCount = definedNodes.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(definedNodes.length)))
+  const nodeBitCount =
+    definedNodes.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(definedNodes.length)))
   const groups = new Map()
 
   transitions.forEach((transition) => {
@@ -493,7 +491,10 @@ window.addEventListener('message', (event) => {
 
   transitions.forEach((transition) => {
     const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
-    const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+    const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
+      /-/g,
+      'x',
+    )
     const targetPattern = normalizePatternBits(
       transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
       nodeBitCount,

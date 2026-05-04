@@ -21,7 +21,9 @@ function getTransitionGroupId(transition) {
 }
 
 function normalizeBitsPattern(value) {
-  return String(value ?? '').trim().replace(/-/g, 'x')
+  return String(value ?? '')
+    .trim()
+    .replace(/-/g, 'x')
 }
 
 function patternsOverlap(leftPattern, rightPattern) {
@@ -52,6 +54,16 @@ function getOutputFromLabel(label) {
   return normalizeBitsPattern(output)
 }
 
+function isExactBitLabel(label, inputBits, outputBits) {
+  const [input = '', output = ''] = String(label ?? '').split('/')
+  return (
+    input.length === inputBits &&
+    output.length === outputBits &&
+    /^[01x]+$/.test(input) &&
+    /^[01x]+$/.test(output)
+  )
+}
+
 export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list)[id]
   if (!transitionEntry) return false
@@ -60,7 +72,9 @@ export function removeTransitionById(id) {
   const to_state = transitionEntry.to
   const targetGroupId = getTransitionGroupId(transitionEntry)
   const transitionIds = (store.get(transition_list) ?? [])
-    .map((transition, index) => (transition && getTransitionGroupId(transition) === targetGroupId ? index : -1))
+    .map((transition, index) =>
+      transition && getTransitionGroupId(transition) === targetGroupId ? index : -1,
+    )
     .filter((transitionId) => transitionId >= 0)
 
   transitionIds.forEach((transitionId) => {
@@ -241,14 +255,22 @@ export function handleTransitionSave(labels) {
   const src_node = activeTransition.from
   const groupId = getTransitionGroupId(activeTransition)
   const groupTransitionIds = (store.get(transition_list) ?? [])
-    .map((transition, index) => (transition && getTransitionGroupId(transition) === groupId ? index : -1))
+    .map((transition, index) =>
+      transition && getTransitionGroupId(transition) === groupId ? index : -1,
+    )
     .filter((transitionId) => transitionId >= 0)
 
   // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim().replace(/-/g, 'x'))
+  const { maxInput, maxOutput } = getEditorBitLengths()
   for (const label of stringLabels) {
-    if (!/^[01x]+\/[01x]+$/.test(label)) {
-      store.set(alert, `"${label}" invalid, only format input/output with {0,1,x} allowed!`)
+    if (!isExactBitLabel(label, maxInput, maxOutput)) {
+      store.set(
+        alert,
+        `"${label}" invalid, enter exactly ${maxInput} input bit${
+          maxInput === 1 ? '' : 's'
+        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using {0,1,x}!`,
+      )
       store.set(show_popup, false)
       setTimeout(() => store.set(alert, ''), 3500)
       return
@@ -267,7 +289,7 @@ export function handleTransitionSave(labels) {
 
   if (duplicateExists) {
     store.set(show_popup, false)
-    store.set(alert, 'This input overlaps with an existing transition from the same state.')
+    store.set(alert, 'The new transition is invalid and cannot be saved')
     setTimeout(() => store.set(alert, ''), 3500)
     return
   }
@@ -336,8 +358,6 @@ export function handleTransitionSave(labels) {
       labelShape.y(points[3] - 10)
     }
   })
-
-  const { maxInput, maxOutput } = getEditorBitLengths()
 
   store.set(transition_list, (old) => {
     return old.map((t) => {
