@@ -431,7 +431,7 @@ export function handleTransitionSave(labels) {
   })
 
   // Update labels + position in UI for the whole logical transition group.
-  const labelText = nextLabel.replace(/x/g, '-')
+  const labelText = nextLabel
 
   groupTransitionIds.forEach((transitionId) => {
     const displayText = store.get(stage_ref).findOne(`#trtext_${transitionId}`)

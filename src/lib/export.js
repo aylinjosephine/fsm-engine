@@ -246,7 +246,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
     const labelFromParent =
       typeof t.input === 'string' && typeof output === 'string'
         ? `${t.input}/${output}`
-        : (t.label ?? existing?.label ?? '0/0')
+        : String(t.label ?? existing?.label ?? '0/0').replace(/-/g, 'x')
 
     const draft = existing
       ? {
@@ -355,9 +355,7 @@ function syncRenderedTransitions(transitionAtoms) {
     const labelShape = stage.findOne(`#tr_label${transition.id}`)
     const textShape = stage.findOne(`#trtext_${transition.id}`)
     const labelText =
-      transition.label && transition.label.length > 0
-        ? String(transition.label).replace(/x/g, '-')
-        : ''
+      transition.label && transition.label.length > 0 ? String(transition.label) : ''
 
     if (transitionShape) {
       transitionShape.points(transition.points)
@@ -609,6 +607,10 @@ window.addEventListener('message', (event) => {
       /-/g,
       'x',
     )
+    const normalizedLabel =
+      typeof transition.label === 'string'
+        ? transition.label.replace(/-/g, 'x')
+        : `${baseLabelInput}/${baseLabelOutput}`
     const targetPattern = normalizePatternBits(
       transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
       nodeBitCount,
@@ -631,10 +633,7 @@ window.addEventListener('message', (event) => {
         input: baseLabelInput,
         output: baseLabelOutput,
         mealy_output: baseLabelOutput,
-        label:
-          typeof transition.label === 'string'
-            ? transition.label
-            : `${baseLabelInput}/${baseLabelOutput}`,
+        label: normalizedLabel,
         isDraft: false,
         hiddenDontCare: true,
       })
@@ -670,10 +669,7 @@ window.addEventListener('message', (event) => {
               input: baseLabelInput,
               output: baseLabelOutput,
               mealy_output: baseLabelOutput,
-              label:
-                typeof transition.label === 'string'
-                  ? transition.label
-                  : `${baseLabelInput}/${baseLabelOutput}`,
+              label: normalizedLabel,
               isDraft: false,
               hiddenDontCare: false,
             })
@@ -693,6 +689,7 @@ window.addEventListener('message', (event) => {
           id: nextTransitionId++,
           groupId: transition.groupId ?? transition.id ?? 0,
           hiddenDontCare: false,
+          label: normalizedLabel,
         })
         return
       }

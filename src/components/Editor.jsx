@@ -248,7 +248,7 @@ const Editor = () => {
                       {(() => {
                         const rawLabelText =
                           transition.label && transition.label.length > 0 ? transition.label : ''
-                        const labelText = rawLabelText.replace(/x/g, '-')
+                        const labelText = rawLabelText
                         const pts = transition.points
                         // quadratic bezier midpoint at t=0.5
                         const mx = 0.25 * pts[0] + 0.5 * pts[2] + 0.25 * pts[4]

@@ -157,14 +157,13 @@ function ChooseTransitionLabelFreeStyle() {
 
   function keepAllowedSymbols(value, maxLength) {
     return String(value ?? '')
-      .replace(/x/g, '-')
-      .replace(/[^01-]/g, '')
+      .replace(/[^01x]/g, '')
       .slice(0, clampBitCount(maxLength))
   }
 
   function isValidBits(value, maxLength) {
     const limit = clampBitCount(maxLength)
-    return value.length > 0 && value.length <= limit && /^[01-]+$/.test(value)
+    return value.length > 0 && value.length <= limit && /^[01x]+$/.test(value)
   }
 
   useEffect(() => {
@@ -193,8 +192,8 @@ function ChooseTransitionLabelFreeStyle() {
     const input = inputValue.trim()
     const output = outputValue.trim()
     const valid = isValidBits(input, inputBits) && isValidBits(output, outputBits)
-    const normalizedInput = input.replace(/-/g, 'x')
-    const normalizedOutput = output.replace(/-/g, 'x')
+    const normalizedInput = input
+    const normalizedOutput = output
 
     if (!valid) {
       handleInvalidTransitionFallback(normalizedInput, normalizedOutput)
@@ -229,7 +228,7 @@ function ChooseTransitionLabelFreeStyle() {
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
           maxLength={inputBits}
-          pattern="[01-]*"
+          pattern="[01x]*"
           onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value, inputBits))}
           onKeyDown={handleInputKeyDown}
           placeholder=""
@@ -242,7 +241,7 @@ function ChooseTransitionLabelFreeStyle() {
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
           maxLength={outputBits}
-          pattern="[01-]*"
+          pattern="[01x]*"
           onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
           onKeyDown={handleInputKeyDown}
           placeholder=""
