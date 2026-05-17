@@ -563,7 +563,47 @@ window.addEventListener('message', (event) => {
   const renderableTransitions = []
   unresolvedTransitions = []
 
-  transitions.forEach((transition) => {
+  const mergedTransitions = (() => {
+    const grouped = new Map()
+
+    transitions.forEach((transition) => {
+      const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+      const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
+        /-/g,
+        'x',
+      )
+      const targetPattern = normalizePatternBits(
+        transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+        nodeBitCount,
+        'x',
+        'left',
+      )
+      const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
+      const existing = grouped.get(key) || {
+        transition,
+        inputs: [],
+        baseLabelOutput,
+        targetPattern,
+      }
+
+      existing.inputs.push(baseLabelInput)
+      grouped.set(key, existing)
+    })
+
+    return Array.from(grouped.values()).map((entry) => {
+      const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
+      const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
+      return {
+        ...entry.transition,
+        input: mergedInput,
+        output: entry.baseLabelOutput,
+        mealy_output: entry.baseLabelOutput,
+        toBinaryId: entry.targetPattern,
+      }
+    })
+  })()
+
+  mergedTransitions.forEach((transition) => {
     const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
     const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
       /-/g,
