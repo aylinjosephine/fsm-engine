@@ -208,10 +208,14 @@ function attachTransitionsToNodes(nodes, transitions) {
   transitions.forEach((transition) => {
     if (!transition) return
 
+    // Do not attach hidden don't-care transitions to node transition lists
+    if (transition.hiddenDontCare) return
+
     const transitionRef = {
       from: transition.from,
       to: transition.to,
       id: transition.id,
+      tr_name: transition.id,
     }
 
     if (nodes[transition.from]) {
@@ -252,6 +256,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           label: labelFromParent,
           from: t.from,
           to: t.to,
+          hiddenDontCare: t.hiddenDontCare ?? existing.hiddenDontCare,
         }
       : {
           id: t.id,
@@ -260,6 +265,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           from: t.from,
           to: t.to,
           label: labelFromParent,
+          hiddenDontCare: t.hiddenDontCare ?? false,
           stroke: '#ffffffdd',
           strokeWidth: 2,
           fill: '#ffffffdd',
@@ -444,7 +450,7 @@ export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const definedNodes = nodes.filter(Boolean)
   const transitions = (store.get(transition_list) ?? []).filter(
-    (transition) => transition && !transition.isDraft,
+    (transition) => transition && !transition.isDraft && !transition.hiddenDontCare,
   )
   const fsmType = store.get(fsm_type) ?? 'mealy'
   const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
@@ -569,6 +575,31 @@ window.addEventListener('message', (event) => {
       'x',
       'left',
     )
+    const isHiddenDontCare =
+      /^x+$/.test(baseLabelInput) &&
+      /^x+$/.test(targetPattern) &&
+      typeof baseLabelOutput === 'string' &&
+      baseLabelOutput.length > 0 &&
+      /^x+$/.test(baseLabelOutput)
+
+    if (isHiddenDontCare) {
+      renderableTransitions.push({
+        ...transition,
+        id: nextTransitionId++,
+        groupId: transition.groupId ?? transition.id ?? 0,
+        toBinaryId: targetPattern,
+        input: baseLabelInput,
+        output: baseLabelOutput,
+        mealy_output: baseLabelOutput,
+        label:
+          typeof transition.label === 'string'
+            ? transition.label
+            : `${baseLabelInput}/${baseLabelOutput}`,
+        isDraft: false,
+        hiddenDontCare: true,
+      })
+      return
+    }
     const concreteTargets = expandDontCares(targetPattern)
 
     if (concreteTargets.length > 0) {
@@ -604,6 +635,7 @@ window.addEventListener('message', (event) => {
                   ? transition.label
                   : `${baseLabelInput}/${baseLabelOutput}`,
               isDraft: false,
+              hiddenDontCare: false,
             })
           })
         })
@@ -620,6 +652,7 @@ window.addEventListener('message', (event) => {
           ...transition,
           id: nextTransitionId++,
           groupId: transition.groupId ?? transition.id ?? 0,
+          hiddenDontCare: false,
         })
         return
       }

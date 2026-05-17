@@ -12,6 +12,7 @@ import {
 import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
 import { sendExportToMainState } from './export'
+import { getTransitionPoints } from './editor'
 
 const MIN_IO_BITS = 1
 const MAX_IO_BITS = 10
@@ -123,6 +124,7 @@ export function getEditorBitLengths() {
 
   for (const t of transitions) {
     if (!t) continue
+    if (t.hiddenDontCare) continue
     const label = String(t.label ?? '')
     const [inp = '', out = ''] = label.split('/')
     maxInput = Math.max(maxInput, inp.length || 1)
@@ -280,16 +282,36 @@ export function handleTransitionSave(labels) {
   const nextLabel = stringLabels[0] ?? ''
   const nextInput = getInputFromLabel(nextLabel)
   const nextOutput = getOutputFromLabel(nextLabel)
-  const duplicateExists = (store.get(transition_list) ?? []).some((transition, index) => {
+  const allTransitions = store.get(transition_list) ?? []
+
+  const overlappingHiddenIds = allTransitions
+    .map((transition, index) =>
+      transition &&
+      transition.from === src_node &&
+      transition.hiddenDontCare &&
+      patternsOverlap(nextInput, getInputFromLabel(transition.label))
+        ? index
+        : -1,
+    )
+    .filter((id) => id >= 0)
+
+  const duplicateExists = allTransitions.some((transition, index) => {
     if (!transition || index === active_tr) return false
     if (transition.from !== src_node) return false
     if (getTransitionGroupId(transition) === groupId) return false
+    // ignore hidden don't-care transitions for the purpose of duplication checks
+    if (transition.hiddenDontCare) return false
     return patternsOverlap(nextInput, getInputFromLabel(transition.label))
   })
 
   if (duplicateExists) {
     store.set(show_popup, false)
-    store.set(alert, 'The new transition is invalid and cannot be saved')
+    if (activeTransition.isDraft) {
+      removeTransitionById(active_tr)
+      store.set(alert, 'The new transition is invalid and was discarded.')
+    } else {
+      store.set(alert, 'The new transition is invalid and cannot be saved')
+    }
     setTimeout(() => store.set(alert, ''), 3500)
     return
   }
@@ -327,6 +349,70 @@ export function handleTransitionSave(labels) {
   addToHistory()
   store.set(show_popup, false)
 
+  // If this new transition only overwrites hidden don't-care transitions, allow it
+  if (activeTransition.isDraft && overlappingHiddenIds.length > 0) {
+    const nodesMap = store.get(node_list) ?? []
+    const existing = store.get(transition_list) ?? []
+    const updated = [...existing]
+    overlappingHiddenIds.forEach((hid) => {
+      if (!updated[hid]) return
+      const nextTo = Number.isFinite(activeTransition.to) ? activeTransition.to : updated[hid].to
+      const nextToBinaryId =
+        typeof activeTransition.toBinaryId === 'string'
+          ? activeTransition.toBinaryId
+          : updated[hid].toBinaryId
+
+      updated[hid] = {
+        ...updated[hid],
+        label: nextLabel,
+        input: nextInput,
+        output: nextOutput,
+        mealyOutput: nextOutput,
+        mealy_output: nextOutput,
+        to: nextTo,
+        toBinaryId: nextToBinaryId,
+        forceUnresolved: false,
+        isDraft: false,
+        hiddenDontCare: false,
+        groupId: updated[hid].groupId ?? updated[hid].id,
+        tension: updated[hid].from === nextTo ? 1 : 0.5,
+        points: getTransitionPoints(updated[hid].from, nextTo, hid, nodesMap, updated),
+      }
+    })
+
+    store.set(transition_list, updated)
+
+    // Attach overwritten transitions to node lists (they were previously hidden)
+    store.set(node_list, (old) => {
+      const newNodes = [...old]
+      overlappingHiddenIds.forEach((hid) => {
+        const tr = updated[hid]
+        if (!tr) return
+        const transitionRef = { from: tr.from, to: tr.to, id: hid, tr_name: hid }
+        if (newNodes[tr.from]) {
+          newNodes[tr.from] = {
+            ...newNodes[tr.from],
+            transitions: [...(newNodes[tr.from].transitions || []), transitionRef],
+          }
+        }
+        if (tr.from !== tr.to && newNodes[tr.to]) {
+          newNodes[tr.to] = {
+            ...newNodes[tr.to],
+            transitions: [...(newNodes[tr.to].transitions || []), transitionRef],
+          }
+        }
+      })
+      return newNodes
+    })
+
+    // remove the draft transition if it was the active one
+    removeTransitionById(active_tr)
+
+    store.set(active_transition, null)
+    sendExportToMainState()
+    return
+  }
+
   store.set(transition_list, (old) => {
     const newTrList = [...old]
     groupTransitionIds.forEach((transitionId) => {
@@ -337,6 +423,7 @@ export function handleTransitionSave(labels) {
         input: nextInput,
         output: nextOutput,
         mealyOutput: nextOutput,
+        mealy_output: nextOutput,
         isDraft: false,
       }
     })

@@ -208,7 +208,8 @@ const Editor = () => {
               /******** Display The Transitions of the FSM ********/
               transitionList.map(
                 (transition) =>
-                  transition && (
+                  transition &&
+                  !transition.hiddenDontCare && (
                     <Group
                       key={`${transition.id}-${transition.renderNonce ?? 0}`}
                       id={`tr_${transition.id}`}
