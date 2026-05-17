@@ -77,6 +77,74 @@ function mergeBitPatterns(patterns, fallbackLength) {
   }).join('')
 }
 
+/**
+ * CUSTOM: compress a list of binary patterns (0/1 strings) into a smaller set
+ * of patterns containing 'x' where possible by iteratively merging pairs that
+ * differ in exactly one bit. This helps the editor display compact
+ * transitions (e.g. 001 and 011 -> 0x1) while preserving grouping via groupId.
+ */
+function compressBinaryPatterns(patterns) {
+  // work on unique patterns
+  let set = Array.from(new Set(patterns.filter((p) => typeof p === 'string')))
+  if (!set.length) return []
+
+  const mergeTwo = (a, b) => {
+    if (a.length !== b.length) return null
+    let diffCount = 0
+    const chars = []
+    for (let i = 0; i < a.length; i++) {
+      const ca = a.charAt(i)
+      const cb = b.charAt(i)
+      if (ca === cb) {
+        chars.push(ca)
+        continue
+      }
+      // if either is 'x', result is 'x' at this pos, don't count as concrete difference
+      if (ca === 'x' || cb === 'x') {
+        chars.push('x')
+        continue
+      }
+      // both are concrete but different
+      diffCount += 1
+      if (diffCount > 1) return null
+      chars.push('x')
+    }
+    return diffCount === 1 ? chars.join('') : null
+  }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    const used = new Array(set.length).fill(false)
+    const next = []
+
+    for (let i = 0; i < set.length; i++) {
+      if (used[i]) continue
+      let merged = false
+      for (let j = i + 1; j < set.length; j++) {
+        if (used[j]) continue
+        const m = mergeTwo(set[i], set[j])
+        if (m) {
+          next.push(m)
+          used[i] = true
+          used[j] = true
+          merged = true
+          changed = true
+          break
+        }
+      }
+      if (!merged && !used[i]) {
+        next.push(set[i])
+      }
+    }
+
+    // remove duplicates
+    set = Array.from(new Set(next))
+  }
+
+  return set
+}
+
 function getTransitionGroupKey(transition) {
   return transition?.groupId ?? transition?.id ?? 0
 }
@@ -140,10 +208,14 @@ function attachTransitionsToNodes(nodes, transitions) {
   transitions.forEach((transition) => {
     if (!transition) return
 
+    // Do not attach hidden don't-care transitions to node transition lists
+    if (transition.hiddenDontCare) return
+
     const transitionRef = {
       from: transition.from,
       to: transition.to,
       id: transition.id,
+      tr_name: transition.id,
     }
 
     if (nodes[transition.from]) {
@@ -184,6 +256,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           label: labelFromParent,
           from: t.from,
           to: t.to,
+          hiddenDontCare: t.hiddenDontCare ?? existing.hiddenDontCare,
         }
       : {
           id: t.id,
@@ -192,6 +265,7 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           from: t.from,
           to: t.to,
           label: labelFromParent,
+          hiddenDontCare: t.hiddenDontCare ?? false,
           stroke: '#ffffffdd',
           strokeWidth: 2,
           fill: '#ffffffdd',
@@ -376,7 +450,7 @@ export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const definedNodes = nodes.filter(Boolean)
   const transitions = (store.get(transition_list) ?? []).filter(
-    (transition) => transition && !transition.isDraft,
+    (transition) => transition && !transition.isDraft && !transition.hiddenDontCare,
   )
   const fsmType = store.get(fsm_type) ?? 'mealy'
   const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
@@ -489,7 +563,47 @@ window.addEventListener('message', (event) => {
   const renderableTransitions = []
   unresolvedTransitions = []
 
-  transitions.forEach((transition) => {
+  const mergedTransitions = (() => {
+    const grouped = new Map()
+
+    transitions.forEach((transition) => {
+      const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+      const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
+        /-/g,
+        'x',
+      )
+      const targetPattern = normalizePatternBits(
+        transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+        nodeBitCount,
+        'x',
+        'left',
+      )
+      const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
+      const existing = grouped.get(key) || {
+        transition,
+        inputs: [],
+        baseLabelOutput,
+        targetPattern,
+      }
+
+      existing.inputs.push(baseLabelInput)
+      grouped.set(key, existing)
+    })
+
+    return Array.from(grouped.values()).map((entry) => {
+      const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
+      const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
+      return {
+        ...entry.transition,
+        input: mergedInput,
+        output: entry.baseLabelOutput,
+        mealy_output: entry.baseLabelOutput,
+        toBinaryId: entry.targetPattern,
+      }
+    })
+  })()
+
+  mergedTransitions.forEach((transition) => {
     const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
     const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
       /-/g,
@@ -501,32 +615,71 @@ window.addEventListener('message', (event) => {
       'x',
       'left',
     )
+    const isHiddenDontCare =
+      /^x+$/.test(baseLabelInput) &&
+      /^x+$/.test(targetPattern) &&
+      typeof baseLabelOutput === 'string' &&
+      baseLabelOutput.length > 0 &&
+      /^x+$/.test(baseLabelOutput)
+
+    if (isHiddenDontCare) {
+      renderableTransitions.push({
+        ...transition,
+        id: nextTransitionId++,
+        groupId: transition.groupId ?? transition.id ?? 0,
+        toBinaryId: targetPattern,
+        input: baseLabelInput,
+        output: baseLabelOutput,
+        mealy_output: baseLabelOutput,
+        label:
+          typeof transition.label === 'string'
+            ? transition.label
+            : `${baseLabelInput}/${baseLabelOutput}`,
+        isDraft: false,
+        hiddenDontCare: true,
+      })
+      return
+    }
     const concreteTargets = expandDontCares(targetPattern)
 
     if (concreteTargets.length > 0) {
       const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
       if (fromExists) {
+        // Group concrete targets by resolved target node id (same z^{n+1})
+        const targetsByResolved = new Map()
         concreteTargets.forEach((binaryTarget) => {
           const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
           if (resolvedTo < 0) return
+          const key = String(resolvedTo)
+          const arr = targetsByResolved.get(key) || []
+          arr.push(binaryTarget)
+          targetsByResolved.set(key, arr)
+        })
 
-          renderableTransitions.push({
-            ...transition,
-            id: nextTransitionId++,
-            groupId: transition.groupId ?? transition.id ?? 0,
-            from: transition.from,
-            to: resolvedTo,
-            toBinaryId: binaryTarget,
-            input: baseLabelInput,
-            output: baseLabelOutput,
-            mealy_output: baseLabelOutput,
-            label:
-              typeof transition.label === 'string'
-                ? transition.label
-                : `${baseLabelInput}/${baseLabelOutput}`,
-            isDraft: false,
+        targetsByResolved.forEach((binaryList, resolvedKey) => {
+          // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
+          const merged = compressBinaryPatterns(binaryList)
+          merged.forEach((pattern) => {
+            renderableTransitions.push({
+              ...transition,
+              id: nextTransitionId++,
+              groupId: transition.groupId ?? transition.id ?? 0,
+              from: transition.from,
+              to: Number(resolvedKey),
+              toBinaryId: pattern,
+              input: baseLabelInput,
+              output: baseLabelOutput,
+              mealy_output: baseLabelOutput,
+              label:
+                typeof transition.label === 'string'
+                  ? transition.label
+                  : `${baseLabelInput}/${baseLabelOutput}`,
+              isDraft: false,
+              hiddenDontCare: false,
+            })
           })
         })
+
         return
       }
     }
@@ -539,6 +692,7 @@ window.addEventListener('message', (event) => {
           ...transition,
           id: nextTransitionId++,
           groupId: transition.groupId ?? transition.id ?? 0,
+          hiddenDontCare: false,
         })
         return
       }
