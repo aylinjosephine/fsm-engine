@@ -12,7 +12,6 @@ import {
 import {
   editor_state,
   layer_ref,
-  hide_dont_care_transitions,
   node_list,
   stage_ref,
   transition_list,
@@ -28,7 +27,6 @@ const Editor = () => {
   const [_stageRef, setStageRef] = useAtom(stage_ref)
   const [transitionList, _setTransitionList] = useAtom(transition_list)
   const [_layerRef, setLayerRef] = useAtom(layer_ref)
-  const hideDontCareTransitions = useAtomValue(hide_dont_care_transitions)
   const currentSelected = useAtomValue(current_selected)
   const fsmType = useAtomValue(fsm_type)
   const [hoveredStateId, setHoveredStateId] = useState(null)
@@ -36,22 +34,6 @@ const Editor = () => {
   const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Controls', 'Guide'])
   const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
   const transitionsSelectable = editorState !== 'Connect'
-  const visibleTransitionList = hideDontCareTransitions
-    ? transitionList.filter((transition) => {
-        if (!transition) return false
-
-        const nextStateBits = String(transition.toBinaryId ?? '').replace(/-/g, 'x')
-        const outputBits = String(transition.mealy_output ?? transition.output ?? '').replace(
-          /-/g,
-          'x',
-        )
-
-        const hidesNextState = nextStateBits.length > 0 && /x/i.test(nextStateBits)
-        const hidesOutput = outputBits.length > 0 && /x/i.test(outputBits)
-
-        return !(hidesNextState && hidesOutput)
-      })
-    : transitionList
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -224,7 +206,7 @@ const Editor = () => {
           <Group key={transitionList}>
             {
               /******** Display The Transitions of the FSM ********/
-              visibleTransitionList.map(
+              transitionList.map(
                 (transition) =>
                   transition && (
                     <Group

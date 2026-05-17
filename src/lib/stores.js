@@ -80,9 +80,6 @@ export const contributors_data = atom(null)
 // Store to toggle Transition Table visibility
 export const show_transition_table = atom(false)
 
-// Store to hide transitions whose next state and output are don't-care values
-export const hide_dont_care_transitions = atom(true)
-
 // Store to disable keyboard shortcuts while dock menus are open
 export const shortcut_context_locked = atom(false)
 
