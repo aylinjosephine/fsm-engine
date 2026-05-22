@@ -41,6 +41,10 @@ export function App() {
 
   useEffect(() => {
     const handleKeyPress = (event) => {
+      // ignore when Ctrl/Meta are pressed (preserve browser/app shortcuts)
+      // require Alt to be held for editor shortcuts so they don't conflict with the main app
+      if (event.ctrlKey || event.metaKey) return
+      if (!event.altKey) return
       const target = event.target
       if (
         target instanceof HTMLInputElement ||
