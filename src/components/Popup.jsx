@@ -254,7 +254,7 @@ function ChooseTransitionLabelFreeStyle() {
           className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
         >
           <X size={16} color="#ffffff" />
-          Cancle
+          Cancel
         </button>
         <button
           type="button"
