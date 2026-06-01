@@ -164,8 +164,13 @@ function getTransitionTargetPattern(transition, nodeBitCount, definedNodes) {
 }
 
 function collapseTransitionsForExport(transitions, definedNodes) {
-  const nodeBitCount =
-    definedNodes.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(definedNodes.length)))
+  // Use the highest node id to compute the required bit count, not the
+  // compacted definedNodes.length. definedNodes may be a compacted array and
+  // using its length can produce incorrect bit widths for sparse ids.
+  const maxNodeId = definedNodes.reduce((m, n) => Math.max(m, Number(n?.id ?? -1)), 0)
+  const totalStates = Math.max(1, maxNodeId + 1)
+  const nodeBitCount = totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
+  const isMoore = store.get(fsm_type) === 'moore'
   const groups = new Map()
 
   transitions.forEach((transition) => {
@@ -185,13 +190,30 @@ function collapseTransitionsForExport(transitions, definedNodes) {
       ? resolveNodeIdByBinary(definedNodes, mergedToBinaryId, nodeBitCount)
       : -1
 
-    return normalizeTransitionForParent({
+    const normalizedTransition = normalizeTransitionForParent({
       ...representative,
       id: representative?.groupId ?? representative?.id ?? 0,
       to: resolvedTo,
       toBinaryId: mergedToBinaryId,
     })
+
+    if (!isMoore) return normalizedTransition
+
+    const output = resolveMooreTransitionOutput(normalizedTransition, definedNodes)
+    return {
+      ...normalizedTransition,
+      output,
+      mealy_output: output,
+    }
   })
+}
+
+function resolveMooreTransitionOutput(transition, definedNodes) {
+  const targetNode = definedNodes.find((node) => node?.id === transition?.to)
+  if (targetNode) {
+    return String(targetNode.moore_output ?? '').replace(/-/g, 'x')
+  }
+  return String(transition?.output ?? transition?.mealy_output ?? '').replace(/-/g, 'x')
 }
 
 function buildNodeMap(nodes) {
@@ -236,17 +258,24 @@ function attachTransitionsToNodes(nodes, transitions) {
 
 function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
   const transitionDrafts = []
+  const isMoore = store.get(fsm_type) === 'moore'
 
   transitions.forEach((t) => {
-    const existing =
-      existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
+    let existing = existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
+    if (!existing && t.groupId != null) {
+      existing = existingTransitions.find((tr) => tr && (tr.groupId ?? tr.id) === t.groupId)
+    }
     const output = t.output ?? t.mealy_output ?? ''
     const groupId = t.groupId ?? existing?.groupId ?? t.id
 
-    const labelFromParent =
-      typeof t.input === 'string' && typeof output === 'string'
-        ? `${t.input}/${output}`
-        : String(t.label ?? existing?.label ?? '0/0').replace(/-/g, 'x')
+    let labelFromParent = String(t.label ?? existing?.label ?? '0/0').replace(/-/g, 'x')
+    if (typeof t.input === 'string') {
+      labelFromParent = isMoore
+        ? String(t.input).replace(/-/g, 'x')
+        : typeof output === 'string'
+          ? `${t.input}/${output}`
+          : labelFromParent
+    }
 
     const draft = existing
       ? {
@@ -347,6 +376,7 @@ function removeRenderedTransitions(transitionIds) {
 function syncRenderedTransitions(transitionAtoms) {
   const stage = store.get(stage_ref)
   if (!stage) return
+  const isMoore = store.get(fsm_type) === 'moore'
 
   transitionAtoms.forEach((transition) => {
     if (!transition) return
@@ -355,7 +385,11 @@ function syncRenderedTransitions(transitionAtoms) {
     const labelShape = stage.findOne(`#tr_label${transition.id}`)
     const textShape = stage.findOne(`#trtext_${transition.id}`)
     const labelText =
-      transition.label && transition.label.length > 0 ? String(transition.label) : ''
+      transition.label && transition.label.length > 0
+        ? String(transition.label)
+        : isMoore
+          ? String(transition.input ?? '')
+          : ''
 
     if (transitionShape) {
       transitionShape.points(transition.points)
@@ -417,19 +451,24 @@ function normalizeTransitionForParent(transition) {
     /-/g,
     'x',
   )
+  const isMoore = store.get(fsm_type) === 'moore'
   const output = String(
-    hasExplicitOutput
-      ? (transition?.output ?? transition?.mealy_output ?? '')
-      : (outputFromLabel ?? ''),
+    isMoore
+      ? ''
+      : hasExplicitOutput
+        ? (transition?.output ?? transition?.mealy_output ?? '')
+        : (outputFromLabel ?? ''),
   ).replace(/-/g, 'x')
-  const nodes = (store.get(node_list) ?? []).filter(Boolean)
-  const maxIndex = Math.max(nodes.length - 1, 0)
-  const stateBits = Math.max(maxIndex.toString(2).length, 1)
+  const allNodes = store.get(node_list) ?? []
+  const maxNodeId = allNodes.reduce((m, n) => Math.max(m, Number(n?.id ?? -1)), 0)
+  const totalStates = Math.max(1, maxNodeId + 1)
+  const stateBits = totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
   const shouldBeUnresolved =
     !!transition?.forceUnresolved || (!hasExplicitParentFields && !labelIsValid)
 
   return {
     id: transition?.id ?? 0,
+    groupId: transition?.groupId ?? transition?.id ?? 0,
     from: transition?.from ?? 0,
     to: shouldBeUnresolved ? -1 : (transition?.to ?? -1),
     toBinaryId: shouldBeUnresolved
@@ -439,7 +478,7 @@ function normalizeTransitionForParent(transition) {
         : transition?.toBinaryId,
     input,
     output,
-    mealy_output: output,
+    mealy_output: isMoore ? '' : output,
   }
 }
 
@@ -464,6 +503,13 @@ export function extractFsmData() {
       return definedNodes.some((node) => node?.id === t.to)
     })
 
+  const exportedTransitions =
+    fsmType === 'moore'
+      ? visibleTransitions.filter((transition) => transition.to >= 0)
+      : visibleTransitions
+
+  const exportedPreservedTransitions = fsmType === 'moore' ? [] : preservedUnresolvedTransitions
+
   return {
     states: definedNodes.map((n) => ({
       id: n.id,
@@ -474,7 +520,7 @@ export function extractFsmData() {
       y: n.y,
       moore_output: n.moore_output ?? '',
     })),
-    transitions: [...visibleTransitions, ...preservedUnresolvedTransitions],
+    transitions: [...exportedTransitions, ...exportedPreservedTransitions],
     fsmType,
   }
 }
@@ -498,6 +544,7 @@ window.addEventListener('message', (event) => {
   const states = fsm.states ?? []
   const transitions = fsm.transitions ?? []
   const { fsmType = 'mealy' } = fsm
+  const isMoore = fsmType === 'moore'
 
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
@@ -561,155 +608,279 @@ window.addEventListener('message', (event) => {
   const renderableTransitions = []
   unresolvedTransitions = []
 
-  const mergedTransitions = (() => {
-    const grouped = new Map()
-
+  if (false && isMoore) {
     transitions.forEach((transition) => {
       const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
-      const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
-        /-/g,
-        'x',
-      )
+      const baseLabelOutput = ''
       const targetPattern = normalizePatternBits(
         transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
         nodeBitCount,
         'x',
         'left',
       )
-      const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
-      const existing = grouped.get(key) || {
-        transition,
-        inputs: [],
-        baseLabelOutput,
-        targetPattern,
-      }
+      const concreteTargets = expandDontCares(targetPattern)
 
-      existing.inputs.push(baseLabelInput)
-      grouped.set(key, existing)
-    })
+      if (concreteTargets.length > 0) {
+        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+        if (fromExists) {
+          const targetsByResolved = new Map()
+          concreteTargets.forEach((binaryTarget) => {
+            const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
+            if (resolvedTo < 0) return
+            const key = String(resolvedTo)
+            const arr = targetsByResolved.get(key) || []
+            arr.push(binaryTarget)
+            targetsByResolved.set(key, arr)
+          })
 
-    return Array.from(grouped.values()).map((entry) => {
-      const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
-      const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
-      return {
-        ...entry.transition,
-        input: mergedInput,
-        output: entry.baseLabelOutput,
-        mealy_output: entry.baseLabelOutput,
-        toBinaryId: entry.targetPattern,
-      }
-    })
-  })()
+          // If the original transition is a full don't-care on input and target,
+          // treat the expanded concrete transitions as hidden don't-care so they
+          // don't render visually but remain available to be overwritten by the user.
+          const wasTargetAllDontCare = /^x+$/.test(targetPattern)
+          const isInputAllDontCare = /^x+$/.test(baseLabelInput)
 
-  mergedTransitions.forEach((transition) => {
-    const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
-    const baseLabelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(
-      /-/g,
-      'x',
-    )
-    const normalizedLabel =
-      typeof transition.label === 'string'
-        ? transition.label.replace(/-/g, 'x')
-        : `${baseLabelInput}/${baseLabelOutput}`
-    const targetPattern = normalizePatternBits(
-      transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
-      nodeBitCount,
-      'x',
-      'left',
-    )
-    const isHiddenDontCare =
-      /^x+$/.test(baseLabelInput) &&
-      /^x+$/.test(targetPattern) &&
-      typeof baseLabelOutput === 'string' &&
-      baseLabelOutput.length > 0 &&
-      /^x+$/.test(baseLabelOutput)
-
-    if (isHiddenDontCare) {
-      renderableTransitions.push({
-        ...transition,
-        id: nextTransitionId++,
-        groupId: transition.groupId ?? transition.id ?? 0,
-        toBinaryId: targetPattern,
-        input: baseLabelInput,
-        output: baseLabelOutput,
-        mealy_output: baseLabelOutput,
-        label: normalizedLabel,
-        isDraft: false,
-        hiddenDontCare: true,
-      })
-      return
-    }
-    const concreteTargets = expandDontCares(targetPattern)
-
-    if (concreteTargets.length > 0) {
-      const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-      if (fromExists) {
-        // Group concrete targets by resolved target node id (same z^{n+1})
-        const targetsByResolved = new Map()
-        concreteTargets.forEach((binaryTarget) => {
-          const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
-          if (resolvedTo < 0) return
-          const key = String(resolvedTo)
-          const arr = targetsByResolved.get(key) || []
-          arr.push(binaryTarget)
-          targetsByResolved.set(key, arr)
-        })
-
-        targetsByResolved.forEach((binaryList, resolvedKey) => {
-          // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
-          const merged = compressBinaryPatterns(binaryList)
-          merged.forEach((pattern) => {
-            renderableTransitions.push({
-              ...transition,
-              id: nextTransitionId++,
-              groupId: transition.groupId ?? transition.id ?? 0,
-              from: transition.from,
-              to: Number(resolvedKey),
-              toBinaryId: pattern,
-              input: baseLabelInput,
-              output: baseLabelOutput,
-              mealy_output: baseLabelOutput,
-              label: normalizedLabel,
-              isDraft: false,
-              hiddenDontCare: false,
+          targetsByResolved.forEach((binaryList, resolvedKey) => {
+            const merged = compressBinaryPatterns(binaryList)
+            merged.forEach((pattern) => {
+              renderableTransitions.push({
+                ...transition,
+                id: nextTransitionId++,
+                groupId: transition.groupId ?? transition.id ?? 0,
+                from: transition.from,
+                to: Number(resolvedKey),
+                toBinaryId: pattern,
+                input: baseLabelInput,
+                output: baseLabelOutput,
+                mealy_output: baseLabelOutput,
+                label: baseLabelInput,
+                isDraft: false,
+                hiddenDontCare: isInputAllDontCare && wasTargetAllDontCare,
+              })
             })
           })
-        })
 
-        return
+          return
+        }
       }
-    }
 
-    if (shouldRenderTransition(transition)) {
-      const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-      const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
-      if (fromExists && toExists) {
+      if (shouldRenderTransition(transition)) {
+        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+        const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
+        if (fromExists && toExists) {
+          const isHiddenDontCare = /^x+$/.test(baseLabelInput) && /^x+$/.test(targetPattern)
+          renderableTransitions.push({
+            ...transition,
+            id: nextTransitionId++,
+            groupId: transition.groupId ?? transition.id ?? 0,
+            hiddenDontCare: isHiddenDontCare,
+            label: baseLabelInput,
+            output: baseLabelOutput,
+            mealy_output: baseLabelOutput,
+          })
+          return
+        }
+      }
+
+      unresolvedTransitions.push(transition)
+    })
+  } else {
+    const mergedTransitions = (() => {
+      const grouped = new Map()
+
+      transitions.forEach((transition) => {
+        const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+        const baseLabelOutput = isMoore
+          ? ''
+          : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+        const targetPattern = normalizePatternBits(
+          transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+          nodeBitCount,
+          'x',
+          'left',
+        )
+        const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
+        const existing = grouped.get(key) || {
+          transition,
+          inputs: [],
+          baseLabelOutput,
+          targetPattern,
+        }
+
+        existing.inputs.push(baseLabelInput)
+        grouped.set(key, existing)
+      })
+
+      return Array.from(grouped.values()).map((entry) => {
+        const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
+        const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
+        return {
+          ...entry.transition,
+          input: mergedInput,
+          output: entry.baseLabelOutput,
+          mealy_output: entry.baseLabelOutput,
+          toBinaryId: entry.targetPattern,
+        }
+      })
+    })()
+
+    mergedTransitions.forEach((transition) => {
+      const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+      const baseLabelOutput = isMoore
+        ? ''
+        : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+      const normalizedLabel =
+        typeof transition.label === 'string'
+          ? transition.label.replace(/-/g, 'x')
+          : isMoore
+            ? baseLabelInput
+            : `${baseLabelInput}/${baseLabelOutput}`
+      const targetPattern = normalizePatternBits(
+        transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+        nodeBitCount,
+        'x',
+        'left',
+      )
+      const isHiddenDontCare = isMoore
+        ? /^x+$/.test(baseLabelInput) && /^x+$/.test(targetPattern)
+        : /^x+$/.test(baseLabelInput) &&
+          /^x+$/.test(targetPattern) &&
+          typeof baseLabelOutput === 'string' &&
+          baseLabelOutput.length > 0 &&
+          /^x+$/.test(baseLabelOutput)
+
+      if (isHiddenDontCare) {
         renderableTransitions.push({
           ...transition,
           id: nextTransitionId++,
           groupId: transition.groupId ?? transition.id ?? 0,
-          hiddenDontCare: false,
+          toBinaryId: targetPattern,
+          input: baseLabelInput,
+          output: baseLabelOutput,
+          mealy_output: baseLabelOutput,
           label: normalizedLabel,
+          isDraft: false,
+          hiddenDontCare: true,
         })
         return
       }
-    }
+      const concreteTargets = expandDontCares(targetPattern)
 
-    unresolvedTransitions.push(transition)
-  })
+      if (concreteTargets.length > 0) {
+        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+        if (fromExists) {
+          // Group concrete targets by resolved target node id (same z^{n+1})
+          const targetsByResolved = new Map()
+          concreteTargets.forEach((binaryTarget) => {
+            const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
+            if (resolvedTo < 0) return
+            const key = String(resolvedTo)
+            const arr = targetsByResolved.get(key) || []
+            arr.push(binaryTarget)
+            targetsByResolved.set(key, arr)
+          })
+
+          targetsByResolved.forEach((binaryList, resolvedKey) => {
+            // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
+            const merged = compressBinaryPatterns(binaryList)
+            merged.forEach((pattern) => {
+              renderableTransitions.push({
+                ...transition,
+                id: nextTransitionId++,
+                groupId: transition.groupId ?? transition.id ?? 0,
+                from: transition.from,
+                to: Number(resolvedKey),
+                toBinaryId: pattern,
+                input: baseLabelInput,
+                output: baseLabelOutput,
+                mealy_output: baseLabelOutput,
+                label: normalizedLabel,
+                isDraft: false,
+                hiddenDontCare: false,
+              })
+            })
+          })
+
+          return
+        }
+      }
+
+      if (shouldRenderTransition(transition)) {
+        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+        const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
+        if (fromExists && toExists) {
+          renderableTransitions.push({
+            ...transition,
+            id: nextTransitionId++,
+            groupId: transition.groupId ?? transition.id ?? 0,
+            hiddenDontCare: false,
+            label: normalizedLabel,
+          })
+          return
+        }
+      }
+
+      unresolvedTransitions.push(transition)
+    })
+  }
+
+  // For Moore: merge transitions that share the same from/to/toBinaryId by
+  // combining their input patterns (e.g. '0' + '1' -> 'x') to keep the editor
+  // compact like Mealy. The editor will expand 'x' back into concrete inputs
+  // on import.
+  if (false && isMoore && renderableTransitions.length > 0) {
+    const grouped = new Map()
+    renderableTransitions.forEach((rt) => {
+      const key = `${rt.from}:${rt.to}:${String(rt.toBinaryId ?? '')}`
+      const bucket = grouped.get(key) || []
+      bucket.push(rt)
+      grouped.set(key, bucket)
+    })
+
+    const mergedRT = []
+    grouped.forEach((bucket) => {
+      if (!bucket || bucket.length === 0) return
+      if (bucket.length === 1) {
+        mergedRT.push(bucket[0])
+        return
+      }
+
+      const inputs = bucket.map((b) => String(b.input ?? ''))
+      const fallbackLength = Math.max(1, ...inputs.map((s) => s.length))
+      const mergedInput = mergeBitPatterns(inputs, fallbackLength)
+
+      const rep = bucket[0]
+      const isInputAllDontCare = /^x+$/.test(mergedInput)
+      const wasTargetAllDontCare = /^x+$/.test(String(rep.toBinaryId ?? ''))
+
+      mergedRT.push({
+        ...rep,
+        input: mergedInput,
+        label: String(mergedInput),
+        hiddenDontCare: isInputAllDontCare && wasTargetAllDontCare,
+      })
+    })
+
+    renderableTransitions.length = 0
+    mergedRT.forEach((m) => renderableTransitions.push(m))
+  }
 
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
   updateFromState = true
+  // set nodes silently
+
   store.set(node_list, nodeAtoms)
 
   const nodesMap = buildNodeMap(nodeAtoms)
+  // Use the shared builder for transition atoms for both Mealy and Moore so
+  // grouping, ids and renderNonce handling stay consistent between modes.
   const transitionAtoms = buildTransitionAtoms(renderableTransitions, existingTransitions, nodesMap)
   const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
   // Force a deterministic remount of transition shapes after each import update.
   store.set(transition_list, [])
   store.set(fsm_type, fsmType)
+  // transition atoms are created below
   requestAnimationFrame(() => {
     removeRenderedTransitions(removedTransitionIds)
     store.set(transition_list, transitionAtoms)

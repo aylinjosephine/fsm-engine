@@ -8,6 +8,7 @@ import {
   transition_list,
   engine_mode,
   alert,
+  fsm_type,
 } from './stores'
 import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
@@ -65,6 +66,10 @@ function isExactBitLabel(label, inputBits, outputBits) {
   )
 }
 
+function isMooreMode() {
+  return store.get(fsm_type) === 'moore'
+}
+
 export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list)[id]
   if (!transitionEntry) return false
@@ -118,17 +123,26 @@ export function removeTransitionById(id) {
 // compute x / y bit number
 export function getEditorBitLengths() {
   const transitions = store.get(transition_list) ?? []
+  const moore = isMooreMode()
+  const nodes = store.get(node_list) ?? []
 
   let maxInput = 1
   let maxOutput = 1
 
   for (const t of transitions) {
     if (!t) continue
-    if (t.hiddenDontCare) continue
+    if (!moore && t.hiddenDontCare) continue
     const label = String(t.label ?? '')
     const [inp = '', out = ''] = label.split('/')
     maxInput = Math.max(maxInput, inp.length || 1)
-    maxOutput = Math.max(maxOutput, out.length || 1)
+    if (moore) {
+      for (const node of nodes) {
+        if (!node) continue
+        maxOutput = Math.max(maxOutput, String(node.moore_output ?? '').length || 1)
+      }
+    } else {
+      maxOutput = Math.max(maxOutput, out.length || 1)
+    }
   }
 
   return { maxInput, maxOutput }
@@ -136,8 +150,10 @@ export function getEditorBitLengths() {
 
 function padLabelToBitLengths(label, maxInput, maxOutput) {
   const [inpRaw = '', outRaw = ''] = label.split('/')
-
   const inp = inpRaw.padEnd(maxInput, 'x').slice(0, maxInput)
+  if (isMooreMode()) {
+    return inp
+  }
   const out = outRaw.padEnd(maxOutput, 'x').slice(0, maxOutput)
 
   return `${inp}/${out}`
@@ -189,17 +205,6 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
   const activeTransition = store.get(transition_list)[active_tr]
   if (!activeTransition) return
 
-  // New transition with invalid initialization: drop it completely.
-  if (activeTransition.isDraft) {
-    removeTransitionById(active_tr)
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-    store.set(alert, 'Transition invalid: draft transition was removed.')
-    setTimeout(() => store.set(alert, ''), 2500)
-    sendExportToMainState()
-    return
-  }
-
   const { maxInput, maxOutput } = getEditorBitLengths()
   const normalizedInputValue = String(inputValue ?? '')
     .replace(/-/g, 'x')
@@ -209,7 +214,9 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
     .trim()
   const input = isValidBits(normalizedInputValue) ? normalizedInputValue : 'x'.repeat(maxInput)
   const output = isValidBits(normalizedOutputValue) ? normalizedOutputValue : 'x'.repeat(maxOutput)
-  const paddedLabel = padLabelToBitLengths(`${input}/${output}`, maxInput, maxOutput)
+  const paddedLabel = isMooreMode()
+    ? padLabelToBitLengths(input, maxInput, maxOutput)
+    : padLabelToBitLengths(`${input}/${output}`, maxInput, maxOutput)
   const unresolvedPattern = 'x'.repeat(getStateBits())
 
   addToHistory()
@@ -251,6 +258,7 @@ export function handleTransitionClick(id) {
 // Handle Save on Changing a Transition's Label
 export function handleTransitionSave(labels) {
   const automata_type = store.get(engine_mode).type
+  const moore = isMooreMode()
   const active_tr = store.get(active_transition)
   const activeTransition = store.get(transition_list)[active_tr]
   if (!activeTransition) return
@@ -262,10 +270,22 @@ export function handleTransitionSave(labels) {
     )
     .filter((transitionId) => transitionId >= 0)
 
-  // label validation: either x or x/y
   const stringLabels = labels.map((l) => String(l).trim().replace(/-/g, 'x'))
   const { maxInput, maxOutput } = getEditorBitLengths()
   for (const label of stringLabels) {
+    if (moore) {
+      if (label.length !== maxInput || !/^[01x]+$/.test(label)) {
+        store.set(
+          alert,
+          `"${label}" invalid, enter exactly ${maxInput} input bit${maxInput === 1 ? '' : 's'} using {0,1,x}!`,
+        )
+        store.set(show_popup, false)
+        setTimeout(() => store.set(alert, ''), 3500)
+        return
+      }
+      continue
+    }
+
     if (!isExactBitLabel(label, maxInput, maxOutput)) {
       store.set(
         alert,
@@ -283,24 +303,27 @@ export function handleTransitionSave(labels) {
   const nextInput = getInputFromLabel(nextLabel)
   const nextOutput = getOutputFromLabel(nextLabel)
   const allTransitions = store.get(transition_list) ?? []
+  const handleHiddenDontCareTransitions = true
 
-  const overlappingHiddenIds = allTransitions
-    .map((transition, index) =>
-      transition &&
-      transition.from === src_node &&
-      transition.hiddenDontCare &&
-      patternsOverlap(nextInput, getInputFromLabel(transition.label))
-        ? index
-        : -1,
-    )
-    .filter((id) => id >= 0)
+  const overlappingHiddenIds = handleHiddenDontCareTransitions
+    ? allTransitions
+        .map((transition, index) =>
+          transition &&
+          transition.from === src_node &&
+          transition.hiddenDontCare &&
+          patternsOverlap(nextInput, getInputFromLabel(transition.label))
+            ? index
+            : -1,
+        )
+        .filter((id) => id >= 0)
+    : []
 
   const duplicateExists = allTransitions.some((transition, index) => {
     if (!transition || index === active_tr) return false
     if (transition.from !== src_node) return false
     if (getTransitionGroupId(transition) === groupId) return false
     // ignore hidden don't-care transitions for the purpose of duplication checks
-    if (transition.hiddenDontCare) return false
+    if (handleHiddenDontCareTransitions && transition.hiddenDontCare) return false
     return patternsOverlap(nextInput, getInputFromLabel(transition.label))
   })
 
@@ -350,7 +373,11 @@ export function handleTransitionSave(labels) {
   store.set(show_popup, false)
 
   // If this new transition only overwrites hidden don't-care transitions, allow it
-  if (activeTransition.isDraft && overlappingHiddenIds.length > 0) {
+  if (
+    handleHiddenDontCareTransitions &&
+    activeTransition.isDraft &&
+    overlappingHiddenIds.length > 0
+  ) {
     const nodesMap = store.get(node_list) ?? []
     const existing = store.get(transition_list) ?? []
     const updated = [...existing]
@@ -366,9 +393,9 @@ export function handleTransitionSave(labels) {
         ...updated[hid],
         label: nextLabel,
         input: nextInput,
-        output: nextOutput,
-        mealyOutput: nextOutput,
-        mealy_output: nextOutput,
+        output: moore ? '' : nextOutput,
+        mealyOutput: moore ? undefined : nextOutput,
+        mealy_output: moore ? undefined : nextOutput,
         to: nextTo,
         toBinaryId: nextToBinaryId,
         forceUnresolved: false,
@@ -421,9 +448,9 @@ export function handleTransitionSave(labels) {
         ...newTrList[transitionId],
         label: nextLabel,
         input: nextInput,
-        output: nextOutput,
-        mealyOutput: nextOutput,
-        mealy_output: nextOutput,
+        output: moore ? '' : nextOutput,
+        mealyOutput: moore ? undefined : nextOutput,
+        mealy_output: moore ? undefined : nextOutput,
         isDraft: false,
       }
     })
@@ -431,7 +458,7 @@ export function handleTransitionSave(labels) {
   })
 
   // Update labels + position in UI for the whole logical transition group.
-  const labelText = nextLabel
+  const labelText = moore ? nextInput : nextLabel
 
   groupTransitionIds.forEach((transitionId) => {
     const displayText = store.get(stage_ref).findOne(`#trtext_${transitionId}`)

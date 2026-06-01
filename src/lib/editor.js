@@ -469,6 +469,7 @@ export function handleShortCuts(key) {
 function makeCircle(position, id) {
   const x = position.x
   const y = position.y
+  const isMoore = store.get(fsm_type) === 'moore'
 
   const circle = {
     id: id,
@@ -482,7 +483,7 @@ function makeCircle(position, id) {
       intermediate: id !== 0,
       final: false,
     },
-    moore_output: '',
+    moore_output: isMoore ? 'x' : '',
     transitions: [], // This will have the object {from: num,to: num, label: string}
   }
   return circle

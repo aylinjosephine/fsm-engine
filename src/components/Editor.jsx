@@ -114,31 +114,26 @@ const Editor = () => {
                             : 0
                       }
                     />
-                    <Text
-                      x={-circle.radius - circle.name.length / 2}
-                      y={-circle.radius / 4}
-                      width={2 * circle.radius + circle.name.length}
-                      height={2 * circle.radius}
-                      text={circle.name}
-                      fontSize={20}
-                      fontStyle="bold"
-                      fill="#ffffff"
-                      align="center"
-                    />
-                    {/* if fsm is moore, show output on node*/}
-                    {fsmType === 'moore' && (
-                      <Text
-                        x={-circle.radius - circle.moore_output.length / 2}
-                        y={0}
-                        width={2 * circle.radius + circle.moore_output.length}
-                        height={circle.radius}
-                        text={circle.moore_output}
-                        fontSize={18}
-                        fontStyle="bold"
-                        fill="#ffffff"
-                        align="center"
-                      />
-                    )}
+                    {(() => {
+                      const labelText =
+                        fsmType === 'moore'
+                          ? `${circle.name} / ${circle.moore_output}`
+                          : circle.name
+
+                      return (
+                        <Text
+                          x={-circle.radius - labelText.length / 2}
+                          y={-circle.radius / 6}
+                          width={2 * circle.radius + labelText.length}
+                          height={circle.radius}
+                          text={labelText}
+                          fontSize={20}
+                          fontStyle="bold"
+                          fill="#ffffff"
+                          align="center"
+                        />
+                      )
+                    })()}
 
                     {/* If state is initial, draw an incoming arrow */}
                     {/* arrow is now rendered top-level for drag support */}

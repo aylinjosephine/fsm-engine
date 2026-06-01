@@ -1,12 +1,17 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { active_transition, engine_mode, show_popup, transition_list, store } from '../lib/stores'
 import {
-  handleTransitionSave,
-  handleInvalidTransitionFallback,
-  removeTransitionById,
-} from '../lib/transitions'
+  active_transition,
+  engine_mode,
+  fsm_type,
+  node_list,
+  show_popup,
+  transition_list,
+  store,
+} from '../lib/stores'
+import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
+import { sendExportToMainState } from '../lib/export'
 
 const Popup = () => {
   const showPopup = useAtomValue(show_popup)
@@ -129,6 +134,7 @@ function ChooseTransitionLabelFreeStyle() {
   const MIN_IO_BITS = 1
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
+  const FsmType = useAtomValue(fsm_type)
   const [inputValue, setInputValue] = useState('')
   const [outputValue, setOutputValue] = useState('')
   const [inputBits, setInputBits] = useState(1)
@@ -146,7 +152,17 @@ function ChooseTransitionLabelFreeStyle() {
       if (!tr) continue
       const [inp = '', out = ''] = String(tr.label ?? '').split('/')
       maxInput = Math.max(maxInput, inp.length || 1)
-      maxOutput = Math.max(maxOutput, out.length || 1)
+      if (FsmType !== 'moore') {
+        maxOutput = Math.max(maxOutput, out.length || 1)
+      }
+    }
+
+    if (FsmType === 'moore') {
+      for (const tr of transitions ?? []) {
+        if (!tr) continue
+        const node = store.get(node_list)?.[tr.to]
+        maxOutput = Math.max(maxOutput, String(node?.moore_output ?? '').length || 1)
+      }
     }
 
     return {
@@ -191,18 +207,27 @@ function ChooseTransitionLabelFreeStyle() {
   function handleSubmit() {
     const input = inputValue.trim()
     const output = outputValue.trim()
-    const valid = isValidBits(input, inputBits) && isValidBits(output, outputBits)
+    const valid =
+      isValidBits(input, inputBits) &&
+      (FsmType === 'moore' ? true : isValidBits(output, outputBits))
     const normalizedInput = input
     const normalizedOutput = output
 
     if (!valid) {
-      handleInvalidTransitionFallback(normalizedInput, normalizedOutput)
+      if (TransitionList[ActiveTransition]?.isDraft) {
+        removeTransitionById(ActiveTransition)
+        sendExportToMainState()
+      }
       setInputValue('')
       setOutputValue('')
+      store.set(show_popup, false)
+      store.set(active_transition, null)
       return
     }
 
-    handleTransitionSave([`${normalizedInput}/${normalizedOutput}`])
+    handleTransitionSave(
+      FsmType === 'moore' ? [normalizedInput] : [`${normalizedInput}/${normalizedOutput}`],
+    )
     setInputValue('')
     setOutputValue('')
   }
@@ -234,19 +259,21 @@ function ChooseTransitionLabelFreeStyle() {
           placeholder=""
         />
       </span>
-      <span className="w-full">
-        <p className="font-github text-white text-xs pb-1">output: </p>
-        <input
-          value={outputValue}
-          className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-          type="text"
-          maxLength={outputBits}
-          pattern="[01x]*"
-          onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
-          onKeyDown={handleInputKeyDown}
-          placeholder=""
-        />
-      </span>
+      {FsmType !== 'moore' && (
+        <span className="w-full">
+          <p className="font-github text-white text-xs pb-1">output: </p>
+          <input
+            value={outputValue}
+            className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+            type="text"
+            maxLength={outputBits}
+            pattern="[01x]*"
+            onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
+            onKeyDown={handleInputKeyDown}
+            placeholder=""
+          />
+        </span>
+      )}
       <div className="flex gap-3 mt-5">
         <button
           type="button"
