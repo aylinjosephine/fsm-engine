@@ -77,6 +77,39 @@ function mergeBitPatterns(patterns, fallbackLength) {
   }).join('')
 }
 
+function buildAllowedNodeBits(nodes, bitCount) {
+  const allowed = Array.from({ length: bitCount }, () => ({ zero: false, one: false }))
+
+  nodes.forEach((node) => {
+    if (!node || node.id == null) return
+    const bits = Number(node.id).toString(2).padStart(bitCount, '0')
+    for (let index = 0; index < bitCount; index += 1) {
+      const bit = bits.charAt(index)
+      if (bit === '0') allowed[index].zero = true
+      if (bit === '1') allowed[index].one = true
+    }
+  })
+
+  return allowed
+}
+
+function normalizeToBinaryIdPattern(pattern, bitCount, nodes) {
+  const normalized = normalizePatternBits(pattern, bitCount, 'x', 'left')
+  const allowed = buildAllowedNodeBits(nodes, bitCount)
+
+  return Array.from({ length: bitCount }, (_, index) => {
+    const bit = normalized.charAt(index)
+    const allowZero = allowed[index].zero
+    const allowOne = allowed[index].one
+
+    if (allowZero && !allowOne) return '0'
+    if (allowOne && !allowZero) return '1'
+
+    if (bit === '0' || bit === '1') return bit
+    return 'x'
+  }).join('')
+}
+
 /**
  * CUSTOM: compress a list of binary patterns (0/1 strings) into a smaller set
  * of patterns containing 'x' where possible by iteratively merging pairs that
@@ -261,7 +294,8 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
   const isMoore = store.get(fsm_type) === 'moore'
 
   transitions.forEach((t) => {
-    let existing = existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
+    let existing =
+      existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
     if (!existing && t.groupId != null) {
       existing = existingTransitions.find((tr) => tr && (tr.groupId ?? tr.id) === t.groupId)
     }
@@ -465,16 +499,27 @@ function normalizeTransitionForParent(transition) {
   const stateBits = totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
   const shouldBeUnresolved =
     !!transition?.forceUnresolved || (!hasExplicitParentFields && !labelIsValid)
+  const normalizedToBinaryId = normalizeToBinaryIdPattern(
+    transition?.toBinaryId ?? 'x'.repeat(stateBits),
+    stateBits,
+    allNodes,
+  )
+  const resolvedTargetId =
+    typeof normalizedToBinaryId === 'string' && /^[01]+$/.test(normalizedToBinaryId)
+      ? resolveNodeIdByBinary(allNodes, normalizedToBinaryId, stateBits)
+      : -1
+  const resolvedTo = resolvedTargetId >= 0 ? resolvedTargetId : (transition?.to ?? -1)
+  const resolvedToBinaryId = resolvedTargetId >= 0 ? undefined : normalizedToBinaryId
 
   return {
     id: transition?.id ?? 0,
     groupId: transition?.groupId ?? transition?.id ?? 0,
     from: transition?.from ?? 0,
-    to: shouldBeUnresolved ? -1 : (transition?.to ?? -1),
+    to: shouldBeUnresolved ? -1 : resolvedTo,
     toBinaryId: shouldBeUnresolved
-      ? 'x'.repeat(stateBits)
+      ? normalizedToBinaryId
       : typeof transition?.toBinaryId === 'string'
-        ? String(transition.toBinaryId).replace(/-/g, 'x')
+        ? resolvedToBinaryId
         : transition?.toBinaryId,
     input,
     output,

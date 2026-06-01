@@ -734,8 +734,8 @@ function makeTransition(id, start_node, end_node) {
 }
 
 export function HandleAutoLayout() {
-  const nodes = store.get(node_list)
-  const transitions = store.get(transition_list)
+  const nodes = store.get(node_list) ?? []
+  const transitions = store.get(transition_list) ?? []
   const stage = store.get(stage_ref)
 
   if (!stage) return
@@ -751,12 +751,10 @@ export function HandleAutoLayout() {
   // Create a new directed graph
   const g = new dagre.graphlib.Graph()
 
-  // Set an object for the graph label
   g.setGraph({
-    rankdir: 'LR', // Left-to-Right layout
-    // align: "UL", // Align to Upper-Left
-    ranksep: 180, // Separation between ranks
-    nodesep: 100, // Separation between nodes in the same rank
+    rankdir: 'LR',
+    ranksep: 180,
+    nodesep: 100,
     marginx: 50,
     marginy: 50,
   })
@@ -767,13 +765,21 @@ export function HandleAutoLayout() {
   // Add nodes to the graph.
   validNodeIds.forEach((id) => {
     const node = nodes[id]
-    const size = node.radius * 2 + 20
-    g.setNode(`${id}`, { width: size, height: size })
+    if (!node) return
+
+    const size = (node.radius ?? 40) * 2 + 20
+
+    g.setNode(`${id}`, {
+      width: size,
+      height: size,
+    })
   })
 
   // Add edges to the graph.
   transitions.forEach((tr) => {
     if (!tr) return
+    if (tr.from == null || tr.to == null) return
+
     g.setEdge(`${tr.from}`, `${tr.to}`)
   })
 
@@ -789,13 +795,20 @@ export function HandleAutoLayout() {
 
   g.nodes().forEach((v) => {
     const nodeData = g.node(v)
-    const id = parseInt(v)
-    // dagre gives center coordinates
-    finalPositions[id] = { x: nodeData.x, y: nodeData.y }
+    if (!nodeData) return
 
-    // Update bounds for auto-fit calculation
+    const id = parseInt(v, 10)
     const node = nodes[id]
-    const radius = node.radius
+
+    if (!node) return
+
+    finalPositions[id] = {
+      x: nodeData.x,
+      y: nodeData.y,
+    }
+
+    const radius = node.radius ?? 40
+
     minX = Math.min(minX, nodeData.x - radius)
     minY = Math.min(minY, nodeData.y - radius)
     maxX = Math.max(maxX, nodeData.x + radius)
@@ -832,70 +845,81 @@ export function HandleAutoLayout() {
     scaleY: scale,
   }).play()
 
-  // Animate Nodes
-  let completedTweens = 0
-  const totalTweens = validNodeIds.length
+  // Animate nodes
+  let completed = 0
+  const total = validNodeIds.length
 
   validNodeIds.forEach((id) => {
     const nodeShape = stage.findOne(`#state_${id}`)
     if (!nodeShape) return
 
-    const targetPos = finalPositions[id]
+    const target = finalPositions[id]
+    if (!target) return
 
     new Konva.Tween({
       node: nodeShape,
       duration: 0.5,
       easing: Konva.Easings.EaseInOut,
-      x: targetPos.x,
-      y: targetPos.y,
+      x: target.x,
+      y: target.y,
       onFinish: () => {
-        completedTweens++
-        if (completedTweens === totalTweens) {
-          // All animations done. Sync Store.
+        completed++
 
-          // Update Nodes
+        if (completed === total) {
+          // Sync store after animation
+
           const newNodes = [...nodes]
+
           validNodeIds.forEach((nid) => {
-            if (newNodes[nid]) {
+            if (newNodes[nid] && finalPositions[nid]) {
               newNodes[nid].x = finalPositions[nid].x
               newNodes[nid].y = finalPositions[nid].y
             }
           })
+
           store.set(node_list, () => newNodes)
 
-          // Update Transitions (Recalculate points based on new positions)
+          // Recalculate transitions safely
           const newTransitions = [...transitions]
+
           newTransitions.forEach((tr, i) => {
             if (!tr) return
-            // Now the store has new node positions, so this works
             const points = getTransitionPoints(tr.from, tr.to, tr.id)
             newTransitions[i].points = points
           })
+
           store.set(transition_list, () => newTransitions)
         }
       },
     }).play()
   })
 
-  // Animation Loop for Arrows
+  // Live animation loop for arrows
+  const layer = stage.findOne('Layer') || stage
+  if (!layer) return
+
   const anim = new Konva.Animation(() => {
-    // Build a map of current node positions from the shapes
     const currentNodes = [...nodes]
     let updated = false
 
     validNodeIds.forEach((id) => {
       const shape = stage.findOne(`#state_${id}`)
-      if (shape) {
-        currentNodes[id] = { ...currentNodes[id], x: shape.x(), y: shape.y() }
-        updated = true
+      if (!shape) return
+
+      currentNodes[id] = {
+        ...currentNodes[id],
+        x: shape.x(),
+        y: shape.y(),
       }
+
+      updated = true
     })
 
     if (!updated) return
 
-    // Update all transitions
     transitions.forEach((tr) => {
       if (!tr) return
+
       const trShape = stage.findOne(`#transition_${tr.id}`)
       const trLabel = stage.findOne(`#tr_label${tr.id}`)
 
@@ -904,17 +928,16 @@ export function HandleAutoLayout() {
         trShape.points(points)
 
         if (trLabel) {
-          const labelText = String(tr.label ?? '')
-          trLabel.x(points[2] - 2 * labelText.length)
+          const text = String(tr.label ?? '')
+          trLabel.x(points[2] - 2 * text.length)
           trLabel.y(points[3] - 10)
         }
       }
     })
-  }, stage.findOne('Layer'))
+  }, layer)
 
   anim.start()
 
-  // Stop animation after tween duration
   setTimeout(() => {
     anim.stop()
     sendExportToMainState()
