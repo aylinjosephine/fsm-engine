@@ -71,7 +71,7 @@ function isMooreMode() {
 }
 
 export function removeTransitionById(id) {
-  const transitionEntry = store.get(transition_list)[id]
+  const transitionEntry = store.get(transition_list).find((t) => t?.id === id)
   if (!transitionEntry) return false
 
   const from_state = transitionEntry.from
@@ -91,7 +91,7 @@ export function removeTransitionById(id) {
   store.set(transition_list, (old) => {
     const newTrList = [...old]
     transitionIds.forEach((transitionId) => {
-      newTrList[transitionId] = undefined
+      delete newTrList[transitionId]
     })
     return newTrList
   })
@@ -463,13 +463,15 @@ export function handleTransitionSave(labels) {
   groupTransitionIds.forEach((transitionId) => {
     const displayText = store.get(stage_ref).findOne(`#trtext_${transitionId}`)
     const labelShape = store.get(stage_ref).findOne(`#tr_label${transitionId}`)
-    const transition = store.get(transition_list)[transitionId]
+    const transition = store.get(transition_list).find((t) => t?.id === transitionId)
 
     if (displayText) displayText.text(labelText)
     if (labelShape && transition) {
       const points = transition.points
-      labelShape.x(points[2] - 2 * labelText.length)
-      labelShape.y(points[3] - 10)
+      const mid = getBezierPoint(points, 0.5)
+
+      labelShape.x(mid.x)
+      labelShape.y(mid.y)
     }
   })
 

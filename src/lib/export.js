@@ -436,11 +436,11 @@ function syncRenderedTransitions(transitionAtoms) {
 
     if (labelShape) {
       const pts = transition.points
-      const mx = 0.25 * pts[0] + 0.5 * pts[2] + 0.25 * pts[4]
-      const my = 0.25 * pts[1] + 0.5 * pts[3] + 0.25 * pts[5]
-      const halfW = labelText.length * 4 + 5
-      labelShape.x(mx - halfW)
-      labelShape.y(my - 12)
+      const mid = getBezierPoint(pts, 0.5)
+      const textWidth = labelText.length * 4 + 5
+
+      labelShape.x(mid.x - textWidth / 2)
+      labelShape.y(mid.y - 8)
     }
   })
 

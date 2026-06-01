@@ -369,9 +369,14 @@ function syncTransitionGeometry() {
     }
 
     if (transitionLabel) {
-      const labelLength = String(tr.label ?? '').length
-      transitionLabel.x(points[2] - 2 * labelLength)
-      transitionLabel.y(points[3] - 10)
+      const dx = points[4] - points[0]
+      const dy = points[5] - points[1]
+      const len = Math.sqrt(dx * dx + dy * dy)
+      const normal = len === 0 ? { x: 0, y: 0 } : { x: -dy / len, y: dx / len }
+      const mid = getBezierPoint(points, 0.5)
+
+      transitionLabel.x(mid.x)
+      transitionLabel.y(mid.y)
     }
   })
 }
@@ -671,7 +676,7 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transition
   // Dynamic curvature calculation
   const baseCurvature = 0.2
   const curvatureStep = 0.15
-  const curvature = baseCurvature + effectiveIndex * curvatureStep
+  const curvature = baseCurvature
 
   let subpoint2
 
@@ -731,6 +736,16 @@ function makeTransition(id, start_node, end_node) {
   }
 
   return newTransition
+}
+
+function getBezierPoint(points, t = 0.5) {
+  const [x1, y1, cx, cy, x2, y2] = points
+
+  const x = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2
+
+  const y = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2
+
+  return { x, y }
 }
 
 export function HandleAutoLayout() {
@@ -925,12 +940,15 @@ export function HandleAutoLayout() {
 
       if (trShape) {
         const points = getTransitionPoints(tr.from, tr.to, tr.id, currentNodes)
-        trShape.points(points)
 
         if (trLabel) {
           const text = String(tr.label ?? '')
-          trLabel.x(points[2] - 2 * text.length)
-          trLabel.y(points[3] - 10)
+          const mid = getBezierPoint(points, 0.5)
+
+          trLabel.position({
+            x: mid.x,
+            y: mid.y,
+          })
         }
       }
     })

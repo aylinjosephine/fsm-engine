@@ -53,6 +53,15 @@ const Editor = () => {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  function getBezierPoint(points, t = 0.5) {
+    const [x1, y1, cx, cy, x2, y2] = points
+
+    return {
+      x: (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2,
+      y: (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2,
+    }
+  }
+
   return (
     <Stage
       width={stageSize.width}
@@ -246,16 +255,15 @@ const Editor = () => {
                         const labelText = rawLabelText
                         const pts = transition.points
                         // quadratic bezier midpoint at t=0.5
-                        const mx = 0.25 * pts[0] + 0.5 * pts[2] + 0.25 * pts[4]
-                        const my = 0.25 * pts[1] + 0.5 * pts[3] + 0.25 * pts[5]
+                        const mid = getBezierPoint(pts, 0.5)
                         // center pill on midpoint: half-width ≈ chars * (fontSize*0.6/2) + padding
                         const halfW = labelText.length * 4 + 5
 
                         return (
                           <Label
                             id={`tr_label${transition.id}`}
-                            x={mx - halfW}
-                            y={my - 12}
+                            x={mid.x}
+                            y={mid.y}
                             onClick={() => {
                               if (!transitionsSelectable) return
                               handleTransitionClick(transition.id)
@@ -285,8 +293,9 @@ const Editor = () => {
                               fontSize={transition.fontSize}
                               fontStyle={transition.fontStyle}
                               fill={transition.label_fill}
-                              align={transition.label_align}
-                              padding={5}
+                              verticalAlign="middle"
+                              align="center"
+                              padding={1}
                             />
                           </Label>
                         )
