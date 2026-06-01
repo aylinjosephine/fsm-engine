@@ -350,35 +350,50 @@ export function HandleScrollWheel(e) {
   stage.position(newPos)
 }
 
+function syncTransitionGeometry() {
+  const nodes = store.get(node_list) ?? []
+  const transitions = store.get(transition_list) ?? []
+  const stage = store.get(stage_ref)
+
+  if (!stage) return
+
+  transitions.forEach((tr) => {
+    if (!tr) return
+
+    const transitionShape = stage.findOne(`#transition_${tr.id}`)
+    const transitionLabel = stage.findOne(`#tr_label${tr.id}`)
+    const points = getTransitionPoints(tr.from, tr.to, tr.id, nodes, transitions)
+
+    if (transitionShape) {
+      transitionShape.points(points)
+    }
+
+    if (transitionLabel) {
+      const labelLength = String(tr.label ?? '').length
+      transitionLabel.x(points[2] - 2 * labelLength)
+      transitionLabel.y(points[3] - 10)
+    }
+  })
+}
+
 // Function to update the positions of transition arrows when a node is dragged around
 export function HandleStateDrag(e, id) {
   const state = store.get(node_list)[id] // Get the state
 
-  const group = store.get(stage_ref).findOne('Group')
-  let transition
-  let transition_label
+  const currentTransitions = store.get(transition_list) ?? []
+  const updatedTransitions = currentTransitions.map((transition) => {
+    if (!transition) return transition
 
-  state.transitions.forEach((tr) => {
-    transition = group.findOne(`#transition_${tr.id}`)
-    transition_label = group.findOne(`#tr_label${tr.id}`)
-
-    const points = getTransitionPoints(tr.from, tr.to, tr.id)
-
-    // Update it in store
-    store.set(transition_list, (prev) => {
-      const newTrList = [...prev]
-      if (newTrList[tr.id]) {
-        newTrList[tr.id] = { ...newTrList[tr.id], points: points }
-      }
-      return newTrList
-    })
-
-    transition.points(points) // Update it on display
-
-    // Update transition Label display
-    transition_label.x(points[2] - 2 * store.get(transition_list)[tr.id].label.toString().length)
-    transition_label.y(points[3] - 10)
+    return {
+      ...transition,
+      points: getTransitionPoints(transition.from, transition.to, transition.id),
+    }
   })
+
+  store.set(transition_list, () => updatedTransitions)
+  syncTransitionGeometry()
+
+  sendExportToMainState()
 }
 
 export function handleShortCuts(key) {
@@ -723,6 +738,8 @@ export function HandleAutoLayout() {
   const transitions = store.get(transition_list)
   const stage = store.get(stage_ref)
 
+  if (!stage) return
+
   // Filter out undefined nodes (deleted ones)
   const validNodeIds = nodes.map((n, i) => (n ? i : -1)).filter((i) => i !== -1)
 
@@ -887,7 +904,8 @@ export function HandleAutoLayout() {
         trShape.points(points)
 
         if (trLabel) {
-          trLabel.x(points[2] - 2 * tr.label.toString().length)
+          const labelText = String(tr.label ?? '')
+          trLabel.x(points[2] - 2 * labelText.length)
           trLabel.y(points[3] - 10)
         }
       }
@@ -899,6 +917,7 @@ export function HandleAutoLayout() {
   // Stop animation after tween duration
   setTimeout(() => {
     anim.stop()
+    sendExportToMainState()
   }, 550)
 }
 
