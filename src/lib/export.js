@@ -1,5 +1,5 @@
 // import { getDefaultStore } from 'jotai'
-import { node_list, transition_list, fsm_type, initial_state, stage_ref, store } from './stores'
+import { node_list, transition_list, fsm_type, initial_state, stage_ref, deleted_nodes, store } from './stores'
 import { getTransitionPoints } from './editor'
 
 let updateFromState = false
@@ -940,7 +940,10 @@ window.addEventListener('message', (event) => {
   // Record existing node IDs before overwriting, so we can clean up
   // orphaned Konva shapes for nodes that no longer exist after import.
   const existingNodeIds = existingNodes.map((n) => n?.id)
-  // set nodes silently
+  // set nodes silently. The app renumbers IDs, so any previously deleted
+  // IDs are stale — clear the list to prevent overwriting valid nodes
+  // on the next "add" action.
+  store.set(deleted_nodes, [])
   store.set(node_list, nodeAtoms)
 
   try {
