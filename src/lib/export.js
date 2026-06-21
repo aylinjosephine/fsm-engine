@@ -962,6 +962,24 @@ window.addEventListener('message', (event) => {
       existingTransitions,
       nodesMap,
     )
+
+    // Preserve any existing transitions (drafts or user-saved) that aren't part of the incoming app state
+    const incomingIds = new Set(transitionAtoms.map((t) => t?.id).filter((id) => id != null))
+    for (const existing of existingTransitions) {
+      if (!existing) continue
+      if (incomingIds.has(existing.id)) continue
+      transitionAtoms[existing.id] = {
+        ...existing,
+        points: getTransitionPoints(
+          existing.from,
+          existing.to,
+          existing.id,
+          nodesMap,
+          transitionAtoms,
+        ),
+      }
+    }
+
     const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
     store.set(fsm_type, fsmType)
