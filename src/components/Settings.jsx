@@ -1,6 +1,6 @@
 import { useAtom } from 'jotai'
 import { Activity, CircleCheck, CircleCheckBig, CirclePower, CircleX } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HandleSaveSettings } from '../lib/settings'
 import { current_selected, editor_state, fsm_type, node_list } from '../lib/stores'
 
@@ -20,6 +20,13 @@ const Settings = () => {
     final: false,
   })
   // State Hooks for input fields
+  const nameInputRef = useRef(null)
+
+  useEffect(() => {
+    if (editorState === 'settings') {
+      nameInputRef.current?.focus()
+    }
+  }, [editorState])
 
   // Get the existing values of the State properties
   function setDefaultValues() {
@@ -104,6 +111,7 @@ const Settings = () => {
         <span>
           <p className="font-github text-white text-base pb-2 font-semibold">State Name</p>
           <input
+            ref={nameInputRef}
             value={stateName}
             className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
             type="text"

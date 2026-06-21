@@ -262,8 +262,8 @@ const Editor = () => {
                         return (
                           <Label
                             id={`tr_label${transition.id}`}
-                            x={mid.x}
-                            y={mid.y}
+                            x={mid.x - halfW}
+                            y={mid.y - (transition.fontSize ?? 14) / 2}
                             onClick={() => {
                               if (!transitionsSelectable) return
                               handleTransitionClick(transition.id)

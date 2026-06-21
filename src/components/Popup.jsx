@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   active_transition,
   engine_mode,
@@ -135,10 +135,18 @@ function ChooseTransitionLabelFreeStyle() {
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
   const FsmType = useAtomValue(fsm_type)
+  const showPopup = useAtomValue(show_popup)
   const [inputValue, setInputValue] = useState('')
   const [outputValue, setOutputValue] = useState('')
   const [inputBits, setInputBits] = useState(1)
   const [outputBits, setOutputBits] = useState(1)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (showPopup) {
+      inputRef.current?.focus()
+    }
+  }, [showPopup])
 
   function clampBitCount(value) {
     return Math.min(MAX_IO_BITS, Math.max(MIN_IO_BITS, Number(value) || MIN_IO_BITS))
@@ -249,6 +257,7 @@ function ChooseTransitionLabelFreeStyle() {
       <span className="w-full mb-2">
         <p className="font-github text-white text-xs pb-1">input: </p>
         <input
+          ref={inputRef}
           value={inputValue}
           className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
           type="text"
