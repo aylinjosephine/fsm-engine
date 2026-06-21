@@ -1,6 +1,14 @@
 // import { getDefaultStore } from 'jotai'
-import { node_list, transition_list, fsm_type, initial_state, stage_ref, deleted_nodes, store } from './stores'
-import { getTransitionPoints } from './editor'
+import {
+  node_list,
+  transition_list,
+  fsm_type,
+  initial_state,
+  stage_ref,
+  deleted_nodes,
+  store,
+} from './stores'
+import { getTransitionPoints, getBezierPoint } from './editor'
 
 let updateFromState = false
 let unresolvedTransitions = []
@@ -610,8 +618,7 @@ window.addEventListener('message', (event) => {
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
   const maxIncomingId = states.reduce((m, s) => Math.max(m, Number(s?.id ?? -1)), 0)
-  const nodeBitCount =
-    maxIncomingId <= 0 ? 1 : Math.max(1, Math.ceil(Math.log2(maxIncomingId + 1)))
+  const nodeBitCount = maxIncomingId <= 0 ? 1 : Math.max(1, Math.ceil(Math.log2(maxIncomingId + 1)))
   let nextTransitionId = 0
 
   states.forEach((s, index) => {
@@ -950,7 +957,11 @@ window.addEventListener('message', (event) => {
     const nodesMap = buildNodeMap(nodeAtoms)
     // Use the shared builder for transition atoms for both Mealy and Moore so
     // grouping, ids and renderNonce handling stay consistent between modes.
-    const transitionAtoms = buildTransitionAtoms(renderableTransitions, existingTransitions, nodesMap)
+    const transitionAtoms = buildTransitionAtoms(
+      renderableTransitions,
+      existingTransitions,
+      nodesMap,
+    )
     const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
     // Force a deterministic remount of transition shapes after each import update.

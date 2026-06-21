@@ -369,14 +369,12 @@ function syncTransitionGeometry() {
     }
 
     if (transitionLabel) {
-      const dx = points[4] - points[0]
-      const dy = points[5] - points[1]
-      const len = Math.sqrt(dx * dx + dy * dy)
-      const normal = len === 0 ? { x: 0, y: 0 } : { x: -dy / len, y: dx / len }
       const mid = getBezierPoint(points, 0.5)
+      const labelText = String(tr.label ?? '')
+      const halfW = labelText.length * 4 + 5
 
-      transitionLabel.x(mid.x)
-      transitionLabel.y(mid.y)
+      transitionLabel.x(mid.x - halfW)
+      transitionLabel.y(mid.y - 8)
     }
   })
 }
@@ -748,6 +746,8 @@ function getBezierPoint(points, t = 0.5) {
   return { x, y }
 }
 
+export { getBezierPoint }
+
 export function HandleAutoLayout() {
   const nodes = store.get(node_list) ?? []
   const transitions = store.get(transition_list) ?? []
@@ -944,10 +944,11 @@ export function HandleAutoLayout() {
         if (trLabel) {
           const text = String(tr.label ?? '')
           const mid = getBezierPoint(points, 0.5)
+          const halfW = text.length * 4 + 5
 
           trLabel.position({
-            x: mid.x,
-            y: mid.y,
+            x: mid.x - halfW,
+            y: mid.y - 8,
           })
         }
       }

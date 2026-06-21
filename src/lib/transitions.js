@@ -13,7 +13,7 @@ import {
 import { addToHistory } from './history'
 import { getAlphabetsFor } from './special_functions'
 import { sendExportToMainState } from './export'
-import { getTransitionPoints } from './editor'
+import { getTransitionPoints, getBezierPoint } from './editor'
 
 const MIN_IO_BITS = 1
 const MAX_IO_BITS = 10
@@ -470,9 +470,10 @@ export function handleTransitionSave(labels) {
     if (labelShape && transition) {
       const points = transition.points
       const mid = getBezierPoint(points, 0.5)
+      const halfW = labelText.length * 4 + 5
 
-      labelShape.x(mid.x)
-      labelShape.y(mid.y)
+      labelShape.x(mid.x - halfW)
+      labelShape.y(mid.y - 8)
     }
   })
 
