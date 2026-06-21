@@ -187,7 +187,7 @@ function ChooseTransitionLabelFreeStyle() {
 
   function isValidBits(value, maxLength) {
     const limit = clampBitCount(maxLength)
-    return value.length > 0 && value.length <= limit && /^[01x]+$/.test(value)
+    return value.length === limit && /^[01x]+$/.test(value)
   }
 
   useEffect(() => {
