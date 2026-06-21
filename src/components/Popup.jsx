@@ -141,6 +141,7 @@ function ChooseTransitionLabelFreeStyle() {
   const [inputBits, setInputBits] = useState(1)
   const [outputBits, setOutputBits] = useState(1)
   const inputRef = useRef(null)
+  const outputRef = useRef(null)
 
   useEffect(() => {
     if (showPopup) {
@@ -213,8 +214,11 @@ function ChooseTransitionLabelFreeStyle() {
   }
 
   function handleSubmit() {
-    const input = inputValue.trim()
-    const output = outputValue.trim()
+    // Read directly from the DOM to ensure we get the latest value, even if the user hasn't triggered an onChange event
+    const input = keepAllowedSymbols(inputRef.current?.value ?? '', inputBits).trim()
+    const output = outputRef.current
+      ? keepAllowedSymbols(outputRef.current.value ?? '', outputBits).trim()
+      : ''
     const valid =
       isValidBits(input, inputBits) &&
       (FsmType === 'moore' ? true : isValidBits(output, outputBits))
@@ -272,6 +276,7 @@ function ChooseTransitionLabelFreeStyle() {
         <span className="w-full">
           <p className="font-github text-white text-xs pb-1">output: </p>
           <input
+            ref={outputRef}
             value={outputValue}
             className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
             type="text"
