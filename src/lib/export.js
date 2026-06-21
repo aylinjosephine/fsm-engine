@@ -407,6 +407,22 @@ function removeRenderedTransitions(transitionIds) {
   stage.batchDraw()
 }
 
+function removeRenderedStates(existingNodeIds, newNodeList) {
+  const newIds = new Set(newNodeList.filter(Boolean).map((n) => n.id))
+  const removedIds = existingNodeIds.filter((id) => id != null && !newIds.has(id))
+  if (!removedIds.length) return
+
+  const stage = store.get(stage_ref)
+  if (!stage) return
+
+  removedIds.forEach((id) => {
+    const group = stage.findOne(`#state_${id}`)
+    group?.destroy()
+  })
+
+  stage.batchDraw()
+}
+
 function syncRenderedTransitions(transitionAtoms) {
   const stage = store.get(stage_ref)
   if (!stage) return
@@ -593,7 +609,9 @@ window.addEventListener('message', (event) => {
 
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
-  const nodeBitCount = states.length <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(states.length)))
+  const maxIncomingId = states.reduce((m, s) => Math.max(m, Number(s?.id ?? -1)), 0)
+  const nodeBitCount =
+    maxIncomingId <= 0 ? 1 : Math.max(1, Math.ceil(Math.log2(maxIncomingId + 1)))
   let nextTransitionId = 0
 
   states.forEach((s, index) => {
@@ -912,31 +930,48 @@ window.addEventListener('message', (event) => {
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
   updateFromState = true
-  // set nodes silently
+  // Safety: if the RAF chain below fails for any reason, ensure
+  // updateFromState is reset after a maximum delay so future user
+  // actions (like removeState) aren't silently blocked.
+  const forceUnlockId = setTimeout(() => {
+    updateFromState = false
+  }, 2000)
 
+  // Record existing node IDs before overwriting, so we can clean up
+  // orphaned Konva shapes for nodes that no longer exist after import.
+  const existingNodeIds = existingNodes.map((n) => n?.id)
+  // set nodes silently
   store.set(node_list, nodeAtoms)
 
-  const nodesMap = buildNodeMap(nodeAtoms)
-  // Use the shared builder for transition atoms for both Mealy and Moore so
-  // grouping, ids and renderNonce handling stay consistent between modes.
-  const transitionAtoms = buildTransitionAtoms(renderableTransitions, existingTransitions, nodesMap)
-  const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
+  try {
+    const nodesMap = buildNodeMap(nodeAtoms)
+    // Use the shared builder for transition atoms for both Mealy and Moore so
+    // grouping, ids and renderNonce handling stay consistent between modes.
+    const transitionAtoms = buildTransitionAtoms(renderableTransitions, existingTransitions, nodesMap)
+    const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
-  // Force a deterministic remount of transition shapes after each import update.
-  store.set(transition_list, [])
-  store.set(fsm_type, fsmType)
-  // transition atoms are created below
-  requestAnimationFrame(() => {
-    removeRenderedTransitions(removedTransitionIds)
-    store.set(transition_list, transitionAtoms)
+    // Force a deterministic remount of transition shapes after each import update.
+    store.set(transition_list, [])
+    store.set(fsm_type, fsmType)
+    // transition atoms are created below
     requestAnimationFrame(() => {
-      const recalculatedTransitions = recomputeCommittedTransitionGeometry()
+      removeRenderedTransitions(removedTransitionIds)
+      removeRenderedStates(existingNodeIds, nodeAtoms)
+      store.set(transition_list, transitionAtoms)
       requestAnimationFrame(() => {
-        syncRenderedTransitions(recalculatedTransitions)
-        updateFromState = false
+        const recalculatedTransitions = recomputeCommittedTransitionGeometry()
+        requestAnimationFrame(() => {
+          syncRenderedTransitions(recalculatedTransitions)
+          updateFromState = false
+          clearTimeout(forceUnlockId)
+        })
       })
     })
-  })
+  } catch (error) {
+    updateFromState = false
+    clearTimeout(forceUnlockId)
+    throw error
+  }
 })
 
 export function clearFsmFromParent() {

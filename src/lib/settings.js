@@ -3,6 +3,16 @@
  */
 
 import { current_selected, editor_state, initial_state, fsm_type, node_list, store } from './stores'
+import { addToHistory } from './history'
+import { sendExportToMainState } from './export'
+
+function sanitizeMooreOutput(value) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/-/g, 'x')
+    .replace(/[^01x]/gi, '')
+  return normalized.length > 0 ? normalized : 'x'
+}
 
 export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = '') {
   const nodeList = store.get(node_list)
@@ -14,68 +24,67 @@ export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = 
   const type = nodeList[id].type
   const currentMooreOutput = nodeList[id].moore_output ?? ''
 
-  if (newName !== name) {
-    // If name of the state has changed
-    const newRadius = newName.length + 35
+  let changed = false
 
-    // Update Name in Store
+  if (newName !== name) {
+    const newRadius = newName.length + 35
     store.set(node_list, (prev) => {
       prev[id].name = newName
       prev[id].radius = newRadius
       return prev
     })
+    changed = true
   }
 
-  //  color.substr because we only consider the first 6 chars for rgb and no alpha
   if (newColor !== color.substr(0, 7)) {
-    // Update Name in Store
     store.set(node_list, (prev) => {
-      prev[id].fill = `${newColor}}80`
+      prev[id].fill = `${newColor}80`
       return prev
     })
+    changed = true
   }
 
   if (JSON.stringify(newType) !== JSON.stringify(type)) {
-    // If this state has been set as initial state then update the stores
     if (newType.initial) {
       if (store.get(initial_state) == null) {
-        // Set initial state as current node
-        store.set(initial_state, (_) => id)
+        store.set(initial_state, () => id)
       } else {
-        // Remove the previous state's type as initial
         const prev_initial = store.get(initial_state)
         store.set(node_list, (prev) => {
           prev[prev_initial].type.initial = false
           return prev
         })
-
-        // Update initial_state to point to this state
-        store.set(initial_state, (_) => id)
+        store.set(initial_state, () => id)
       }
     }
-
     store.set(node_list, (prev) => {
       prev[id].type = newType
-
       return prev
     })
+    changed = true
   }
 
   if (isMoore) {
-    const resolvedOutput = newMooreOutput.trim() ? newMooreOutput.trim() : 'x'
+    const resolvedOutput = sanitizeMooreOutput(newMooreOutput)
     if (resolvedOutput !== currentMooreOutput) {
       store.set(node_list, (prev) => {
         prev[id].moore_output = resolvedOutput
         return prev
       })
+      changed = true
     }
   } else if (currentMooreOutput !== '') {
     store.set(node_list, (prev) => {
       prev[id].moore_output = ''
       return prev
     })
+    changed = true
   }
 
-  store.set(editor_state, (_prev) => null)
-  return
+  store.set(editor_state, () => null)
+
+  if (changed) {
+    addToHistory()
+    sendExportToMainState()
+  }
 }

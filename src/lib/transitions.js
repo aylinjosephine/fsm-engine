@@ -196,8 +196,9 @@ function isValidBits(value) {
 
 function getStateBits() {
   const nodes = (store.get(node_list) ?? []).filter(Boolean)
-  const maxIndex = Math.max(nodes.length - 1, 0)
-  return Math.max(maxIndex.toString(2).length, 1)
+  const maxId = nodes.reduce((m, n) => Math.max(m, n?.id ?? -1), -1)
+  const totalStates = Math.max(1, maxId + 1)
+  return totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
 }
 
 export function handleInvalidTransitionFallback(inputValue, outputValue) {
