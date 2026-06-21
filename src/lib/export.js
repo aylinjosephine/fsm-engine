@@ -964,8 +964,6 @@ window.addEventListener('message', (event) => {
     )
     const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
-    // Force a deterministic remount of transition shapes after each import update.
-    store.set(transition_list, [])
     store.set(fsm_type, fsmType)
     // transition atoms are created below
     requestAnimationFrame(() => {
