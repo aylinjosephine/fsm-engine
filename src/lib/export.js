@@ -457,15 +457,6 @@ function syncRenderedTransitions(transitionAtoms) {
     if (textShape) {
       textShape.text(labelText)
     }
-
-    if (labelShape) {
-      const pts = transition.points
-      const mid = getBezierPoint(pts, 0.5)
-      const textWidth = labelText.length * 4 + 5
-
-      labelShape.x(mid.x - textWidth / 2)
-      labelShape.y(mid.y - 8)
-    }
   })
 
   stage.batchDraw()
