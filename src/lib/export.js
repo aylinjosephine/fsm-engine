@@ -6,7 +6,6 @@ import {
   initial_state,
   stage_ref,
   deleted_nodes,
-  show_popup,
   store,
 } from './stores'
 import { getTransitionPoints, getBezierPoint } from './editor'
@@ -597,8 +596,6 @@ export function extractFsmData() {
 
 export function sendExportToMainState() {
   if (updateFromState) return
-  // Don't export while the transition-label popup is open 
-  if (store.get(show_popup)) return
 
   const fsm = extractFsmData()
   window.parent.postMessage({ action: 'export', fsm }, getTrustedOrigin())

@@ -12,22 +12,25 @@ import TopDock from './components/TopDock'
 import TransitionTable from './components/TransitionTable'
 import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
-import { node_list, transition_list } from './lib/stores'
+import { node_list, transition_list, show_popup } from './lib/stores'
 import { sendExportToMainState } from './lib/export.js'
 
 export function App() {
   // CUSTOM: set nodes and transitions for live export
   const nodes = useAtomValue(node_list)
   const transitions = useAtomValue(transition_list)
+  const popupVisible = useAtomValue(show_popup)
 
-  // CUSTOM: live export states and transitions when store changed
+  // CUSTOM: live export states and transitions when store changed,
+  // but skip while the label popup is open
   useEffect(() => {
+    if (popupVisible) return
     const timeout = setTimeout(() => {
       sendExportToMainState()
     }, 100)
 
     return () => clearTimeout(timeout)
-  }, [nodes, transitions])
+  }, [nodes, transitions, popupVisible])
 
   useEffect(() => {
     const handleContextmenu = (e) => {
