@@ -1,154 +1,174 @@
-import { useAtom, useAtomValue } from 'jotai'
-import { useEffect, useState } from 'react'
-import { Arrow, Circle, Group, Label, Layer, Stage, Tag, Text } from 'react-konva'
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useState } from "react";
 import {
-  HandleDragEnd,
-  HandleEditorClick,
-  HandleScrollWheel,
-  HandleStateClick,
-  HandleStateDrag,
-  handleInitialArrowDrop,
-} from '../lib/editor'
+	Arrow,
+	Circle,
+	Group,
+	Label,
+	Layer,
+	Stage,
+	Tag,
+	Text,
+} from "react-konva";
 import {
-  editor_state,
-  layer_ref,
-  node_list,
-  stage_ref,
-  transition_list,
-  current_selected,
-  fsm_type,
-} from '../lib/stores'
-import { handleTransitionClick } from '../lib/transitions'
+	HandleDragEnd,
+	HandleEditorClick,
+	HandleScrollWheel,
+	HandleStateClick,
+	HandleStateDrag,
+	handleInitialArrowDrop,
+} from "../lib/editor";
+import {
+	editor_state,
+	layer_ref,
+	node_list,
+	stage_ref,
+	transition_list,
+	current_selected,
+	fsm_type,
+} from "../lib/stores";
+import { handleTransitionClick } from "../lib/transitions";
 
 const Editor = () => {
-  // Jotai Atoms
-  const nodeList = useAtomValue(node_list)
-  const editorState = useAtomValue(editor_state)
-  const [_stageRef, setStageRef] = useAtom(stage_ref)
-  const [transitionList, _setTransitionList] = useAtom(transition_list)
-  const [_layerRef, setLayerRef] = useAtom(layer_ref)
-  const currentSelected = useAtomValue(current_selected)
-  const fsmType = useAtomValue(fsm_type)
-  const [hoveredStateId, setHoveredStateId] = useState(null)
-  const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
-  const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Controls', 'Guide'])
-  const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
-  const transitionsSelectable = editorState !== 'Connect'
+	// Jotai Atoms
+	const nodeList = useAtomValue(node_list);
+	const editorState = useAtomValue(editor_state);
+	const [_stageRef, setStageRef] = useAtom(stage_ref);
+	const [transitionList, _setTransitionList] = useAtom(transition_list);
+	const [_layerRef, setLayerRef] = useAtom(layer_ref);
+	const currentSelected = useAtomValue(current_selected);
+	const fsmType = useAtomValue(fsm_type);
+	const [hoveredStateId, setHoveredStateId] = useState(null);
+	const [hoveredTransitionId, setHoveredTransitionId] = useState(null);
+	const hoverDisabledModes = new Set([
+		"Add",
+		"Undo",
+		"Redo",
+		"Auto Layout",
+		"Controls",
+		"Guide",
+	]);
+	const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState);
+	const transitionsSelectable = editorState !== "Connect";
 
-  // responsive stage size
-  const [stageSize, setStageSize] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  })
+	// responsive stage size
+	const [stageSize, setStageSize] = useState({
+		width: window.innerWidth,
+		height: window.innerHeight,
+	});
 
-  useEffect(() => {
-    function handleResize() {
-      setStageSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      })
-    }
+	useEffect(() => {
+		function handleResize() {
+			setStageSize({
+				width: window.innerWidth,
+				height: window.innerHeight,
+			});
+		}
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
+	}, []);
 
-  function getBezierPoint(points, t = 0.5) {
-    const [x1, y1, cx, cy, x2, y2] = points
+	function getBezierPoint(points, t = 0.5) {
+		const [x1, y1, cx, cy, x2, y2] = points;
 
-    return {
-      x: (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2,
-      y: (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2,
-    }
-  }
+		return {
+			x: (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2,
+			y: (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2,
+		};
+	}
 
-  return (
-    <Stage
-      width={stageSize.width}
-      height={stageSize.height}
-      onClick={HandleEditorClick}
-      draggable
-      ref={(el) => setStageRef(el)}
-      onWheel={HandleScrollWheel}
-    >
-      <Layer ref={(el) => setLayerRef(el)}>
-        <Group>
-          {
-            /******** Display The States of the FSM ********/
-            nodeList.map(
-              (circle, i) =>
-                circle && (
-                  <Group
-                    key={i}
-                    id={`state_${circle.id}`}
-                    x={circle.x}
-                    y={circle.y}
-                    draggable={!['Add', 'Remove'].includes(editorState)}
-                    onDragEnd={(e) => {
-                      HandleDragEnd(e, circle.id)
-                      HandleStateDrag(e, circle.id)
-                    }}
-                    onClick={(e) => HandleStateClick(e, circle.id)}
-                    onMouseEnter={(e) => {
-                      if (!allowObjectHoverHighlight) return
-                      setHoveredStateId(circle.id)
-                      e.target.getStage().container().style.cursor = 'pointer'
-                    }}
-                    onMouseLeave={(e) => {
-                      setHoveredStateId((prev) => (prev === circle.id ? null : prev))
-                      e.target.getStage().container().style.cursor = 'default'
-                    }}
-                  >
-                    <Circle
-                      x={0}
-                      y={0}
-                      radius={2 * circle.name.length + circle.radius}
-                      fill={
-                        circle.fill === '#ffffff80' || circle.fill === '#ffffff'
-                          ? '#4a6fae88'
-                          : circle.fill
-                      }
-                      stroke={
-                        currentSelected === circle.id
-                          ? '#3b82f6'
-                          : allowObjectHoverHighlight && hoveredStateId === circle.id
-                            ? '#93c5fd'
-                            : null
-                      }
-                      strokeWidth={
-                        currentSelected === circle.id
-                          ? 4
-                          : allowObjectHoverHighlight && hoveredStateId === circle.id
-                            ? 2
-                            : 0
-                      }
-                    />
-                    {(() => {
-                      const labelText =
-                        fsmType === 'moore'
-                          ? `${circle.name} / ${circle.moore_output}`
-                          : circle.name
+	return (
+		<Stage
+			width={stageSize.width}
+			height={stageSize.height}
+			onClick={HandleEditorClick}
+			draggable
+			ref={(el) => setStageRef(el)}
+			onWheel={HandleScrollWheel}
+		>
+			<Layer ref={(el) => setLayerRef(el)}>
+				<Group>
+					{
+						/******** Display The States of the FSM ********/
+						nodeList.map(
+							(circle, i) =>
+								circle && (
+									<Group
+										key={i}
+										id={`state_${circle.id}`}
+										x={circle.x}
+										y={circle.y}
+										draggable={!["Add", "Remove"].includes(editorState)}
+										onDragEnd={(e) => {
+											HandleDragEnd(e, circle.id);
+											HandleStateDrag(e, circle.id);
+										}}
+										onClick={(e) => HandleStateClick(e, circle.id)}
+										onMouseEnter={(e) => {
+											if (!allowObjectHoverHighlight) return;
+											setHoveredStateId(circle.id);
+											e.target.getStage().container().style.cursor = "pointer";
+										}}
+										onMouseLeave={(e) => {
+											setHoveredStateId((prev) =>
+												prev === circle.id ? null : prev,
+											);
+											e.target.getStage().container().style.cursor = "default";
+										}}
+									>
+										<Circle
+											x={0}
+											y={0}
+											radius={2 * circle.name.length + circle.radius}
+											fill={
+												circle.fill === "#ffffff80" || circle.fill === "#ffffff"
+													? "#4a6fae88"
+													: circle.fill
+											}
+											stroke={
+												currentSelected === circle.id
+													? "#3b82f6"
+													: allowObjectHoverHighlight &&
+															hoveredStateId === circle.id
+														? "#93c5fd"
+														: null
+											}
+											strokeWidth={
+												currentSelected === circle.id
+													? 4
+													: allowObjectHoverHighlight &&
+															hoveredStateId === circle.id
+														? 2
+														: 0
+											}
+										/>
+										{(() => {
+											const labelText =
+												fsmType === "moore"
+													? `${circle.name} / ${String(circle.moore_output ?? "").replace(/x/g, "-")}`
+													: circle.name;
 
-                      return (
-                        <Text
-                          x={-circle.radius - labelText.length / 2}
-                          y={-circle.radius / 6}
-                          width={2 * circle.radius + labelText.length}
-                          height={circle.radius}
-                          text={labelText}
-                          fontSize={20}
-                          fontStyle="bold"
-                          fill="#ffffff"
-                          align="center"
-                        />
-                      )
-                    })()}
+											return (
+												<Text
+													x={-circle.radius - labelText.length / 2}
+													y={-circle.radius / 6}
+													width={2 * circle.radius + labelText.length}
+													height={circle.radius}
+													text={labelText}
+													fontSize={20}
+													fontStyle="bold"
+													fill="#ffffff"
+													align="center"
+												/>
+											);
+										})()}
 
-                    {/* If state is initial, draw an incoming arrow */}
-                    {/* arrow is now rendered top-level for drag support */}
+										{/* If state is initial, draw an incoming arrow */}
+										{/* arrow is now rendered top-level for drag support */}
 
-                    {/* If state is final, draw an extra outer circle */}
-                    {/*circle.type.final && (
+										{/* If state is final, draw an extra outer circle */}
+										{/*circle.type.final && (
                       <Circle
                         x={0}
                         y={0}
@@ -162,153 +182,167 @@ const Editor = () => {
                         }
                       />
                     )*/}
-                  </Group>
-                ),
-            )
-          }
+									</Group>
+								),
+						)
+					}
 
-          {/******** Initial State Arrow (top-level, draggable handle) ********/}
-          {nodeList.map(
-            (circle) =>
-              circle?.type?.initial &&
-              (() => {
-                const offset = 2 * circle.radius + 2.5 * circle.name.length
-                const tailX = circle.x - offset - circle.radius / 1.5
-                const headX = circle.x - offset + circle.radius - 5
-                const y = circle.y
-                return (
-                  <Group key={`initial_arrow_${circle.id}`}>
-                    <Arrow
-                      points={[tailX, y, headX, y]}
-                      pointerLength={8}
-                      pointerWidth={8}
-                      fill={'#6b7280cc'}
-                      stroke={'#6b7280cc'}
-                      strokeWidth={2}
-                      listening={false}
-                    />
-                    {/* Draggable tail handle */}
-                    <Circle
-                      x={tailX}
-                      y={y}
-                      radius={5}
-                      fill={'#6b7280'}
-                      stroke={'#ffffff50'}
-                      strokeWidth={1}
-                      draggable
-                      onDragEnd={(e) => {
-                        const pos = e.target.position()
-                        handleInitialArrowDrop(pos.x, pos.y)
-                        e.target.position({ x: tailX, y })
-                      }}
-                    />
-                  </Group>
-                )
-              })(),
-          )}
+					{/******** Initial State Arrow (top-level, draggable handle) ********/}
+					{nodeList.map(
+						(circle) =>
+							circle?.type?.initial &&
+							(() => {
+								const offset = 2 * circle.radius + 2.5 * circle.name.length;
+								const tailX = circle.x - offset - circle.radius / 1.5;
+								const headX = circle.x - offset + circle.radius - 5;
+								const y = circle.y;
+								return (
+									<Group key={`initial_arrow_${circle.id}`}>
+										<Arrow
+											points={[tailX, y, headX, y]}
+											pointerLength={8}
+											pointerWidth={8}
+											fill={"#6b7280cc"}
+											stroke={"#6b7280cc"}
+											strokeWidth={2}
+											listening={false}
+										/>
+										{/* Draggable tail handle */}
+										<Circle
+											x={tailX}
+											y={y}
+											radius={5}
+											fill={"#6b7280"}
+											stroke={"#ffffff50"}
+											strokeWidth={1}
+											draggable
+											onDragEnd={(e) => {
+												const pos = e.target.position();
+												handleInitialArrowDrop(pos.x, pos.y);
+												e.target.position({ x: tailX, y });
+											}}
+										/>
+									</Group>
+								);
+							})(),
+					)}
 
-          <Group key={transitionList}>
-            {
-              /******** Display The Transitions of the FSM ********/
-              transitionList.map(
-                (transition) =>
-                  transition &&
-                  !transition.hiddenDontCare && (
-                    <Group
-                      key={`${transition.id}-${transition.renderNonce ?? 0}`}
-                      id={`tr_${transition.id}`}
-                    >
-                      {/* Transition arrow object */}
-                      <Arrow
-                        id={`transition_${transition.id}`}
-                        stroke={
-                          hoveredTransitionId === transition.id ? '#93c5fd' : transition.stroke
-                        }
-                        strokeWidth={
-                          hoveredTransitionId === transition.id
-                            ? transition.strokeWidth + 1
-                            : transition.strokeWidth
-                        }
-                        fill={transition.fill}
-                        points={transition.points}
-                        tension={transition.tension}
-                        onClick={() => {
-                          if (!transitionsSelectable) return
-                          handleTransitionClick(transition.id)
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!transitionsSelectable) return
-                          if (!allowObjectHoverHighlight) return
-                          setHoveredTransitionId(transition.id)
-                          e.target.getStage().container().style.cursor = 'pointer'
-                        }}
-                        onMouseLeave={(e) => {
-                          setHoveredTransitionId((prev) => (prev === transition.id ? null : prev))
-                          e.target.getStage().container().style.cursor = 'default'
-                        }}
-                      />
+					<Group key={transitionList}>
+						{
+							/******** Display The Transitions of the FSM ********/
+							transitionList.map(
+								(transition) =>
+									transition &&
+									!transition.hiddenDontCare && (
+										<Group
+											key={`${transition.id}-${transition.renderNonce ?? 0}`}
+											id={`tr_${transition.id}`}
+										>
+											{/* Transition arrow object */}
+											<Arrow
+												id={`transition_${transition.id}`}
+												stroke={
+													hoveredTransitionId === transition.id
+														? "#93c5fd"
+														: transition.stroke
+												}
+												strokeWidth={
+													hoveredTransitionId === transition.id
+														? transition.strokeWidth + 1
+														: transition.strokeWidth
+												}
+												fill={transition.fill}
+												points={transition.points}
+												tension={transition.tension}
+												onClick={() => {
+													if (!transitionsSelectable) return;
+													handleTransitionClick(transition.id);
+												}}
+												onMouseEnter={(e) => {
+													if (!transitionsSelectable) return;
+													if (!allowObjectHoverHighlight) return;
+													setHoveredTransitionId(transition.id);
+													e.target.getStage().container().style.cursor =
+														"pointer";
+												}}
+												onMouseLeave={(e) => {
+													setHoveredTransitionId((prev) =>
+														prev === transition.id ? null : prev,
+													);
+													e.target.getStage().container().style.cursor =
+														"default";
+												}}
+											/>
 
-                      {/* Add a Label to the middle of the arrow */}
-                      {(() => {
-                        const rawLabelText =
-                          transition.label && transition.label.length > 0 ? transition.label : ''
-                        const labelText = rawLabelText
-                        const pts = transition.points
-                        // quadratic bezier midpoint at t=0.5
-                        const mid = getBezierPoint(pts, 0.5)
-                        // center pill on midpoint: half-width ≈ chars * (fontSize*0.6/2) + padding
-                        const halfW = labelText.length * 4 + 5
+											{/* Add a Label to the middle of the arrow */}
+											{(() => {
+												const rawLabelText =
+													transition.label && transition.label.length > 0
+														? transition.label
+														: "";
+												const labelText = rawLabelText.replace(/x/g, "-");
+												const pts = transition.points;
+												// quadratic bezier midpoint at t=0.5
+												const mid = getBezierPoint(pts, 0.5);
+												// center pill on midpoint: half-width ≈ chars * (fontSize*0.6/2) + padding
+												const halfW = labelText.length * 4 + 5;
 
-                        return (
-                          <Label
-                            id={`tr_label${transition.id}`}
-                            x={mid.x - halfW}
-                            y={mid.y - 8}
-                            onClick={() => {
-                              if (!transitionsSelectable) return
-                              handleTransitionClick(transition.id)
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!transitionsSelectable) return
-                              if (!allowObjectHoverHighlight) return
-                              setHoveredTransitionId(transition.id)
-                              e.target.getStage().container().style.cursor = 'pointer'
-                            }}
-                            onMouseLeave={(e) => {
-                              setHoveredTransitionId((prev) =>
-                                prev === transition.id ? null : prev,
-                              )
-                              e.target.getStage().container().style.cursor = 'default'
-                            }}
-                          >
-                            <Tag
-                              fill={hoveredTransitionId === transition.id ? '#1b2638' : '#0d0d18'}
-                              opacity={0.85}
-                              cornerRadius={6}
-                              lineJoin="round"
-                            />
-                            <Text
-                              id={`trtext_${transition.id}`}
-                              text={labelText}
-                              fontSize={transition.fontSize}
-                              fontStyle={transition.fontStyle}
-                              fill={transition.label_fill}
-                              verticalAlign="middle"
-                              align="center"
-                              padding={1}
-                            />
-                          </Label>
-                        )
-                      })()}
-                    </Group>
-                  ),
-              )
-            }
-          </Group>
-        </Group>
-      </Layer>
-    </Stage>
-  )
-}
+												return (
+													<Label
+														id={`tr_label${transition.id}`}
+														x={mid.x - halfW}
+														y={mid.y - 8}
+														onClick={() => {
+															if (!transitionsSelectable) return;
+															handleTransitionClick(transition.id);
+														}}
+														onMouseEnter={(e) => {
+															if (!transitionsSelectable) return;
+															if (!allowObjectHoverHighlight) return;
+															setHoveredTransitionId(transition.id);
+															e.target.getStage().container().style.cursor =
+																"pointer";
+														}}
+														onMouseLeave={(e) => {
+															setHoveredTransitionId((prev) =>
+																prev === transition.id ? null : prev,
+															);
+															e.target.getStage().container().style.cursor =
+																"default";
+														}}
+													>
+														<Tag
+															fill={
+																hoveredTransitionId === transition.id
+																	? "#1b2638"
+																	: "#0d0d18"
+															}
+															opacity={0.85}
+															cornerRadius={6}
+															lineJoin="round"
+														/>
+														<Text
+															id={`trtext_${transition.id}`}
+															text={labelText}
+															fontSize={transition.fontSize}
+															fontStyle={transition.fontStyle}
+															fill={transition.label_fill}
+															verticalAlign="middle"
+															align="center"
+															padding={1}
+														/>
+													</Label>
+												);
+											})()}
+										</Group>
+									),
+							)
+						}
+					</Group>
+				</Group>
+			</Layer>
+		</Stage>
+	);
+};
 
-export default Editor
+export default Editor;

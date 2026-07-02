@@ -1,311 +1,340 @@
-import { useAtomValue } from 'jotai'
-import { CircleCheck, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useAtomValue } from "jotai";
+import { CircleCheck, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
-  active_transition,
-  engine_mode,
-  fsm_type,
-  node_list,
-  show_popup,
-  transition_list,
-  store,
-} from '../lib/stores'
-import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
-import { sendExportToMainState } from '../lib/export'
+	active_transition,
+	engine_mode,
+	fsm_type,
+	node_list,
+	show_popup,
+	transition_list,
+	store,
+} from "../lib/stores";
+import { handleTransitionSave, removeTransitionById } from "../lib/transitions";
+import { sendExportToMainState } from "../lib/export";
 
 const Popup = () => {
-  const showPopup = useAtomValue(show_popup)
-  const activeTransition = useAtomValue(active_transition)
-  const transitionList = useAtomValue(transition_list)
-  const popups = [<ChooseTransitionLabelFreeStyle />, <ChooseTransitionLabelDFA />]
-  const EngineMode = useAtomValue(engine_mode)
+	const showPopup = useAtomValue(show_popup);
+	const activeTransition = useAtomValue(active_transition);
+	const transitionList = useAtomValue(transition_list);
+	const popups = [
+		<ChooseTransitionLabelFreeStyle />,
+		<ChooseTransitionLabelDFA />,
+	];
+	const EngineMode = useAtomValue(engine_mode);
 
-  const engine_mode_popup_map = {
-    'Free Style': 0,
-    DFA: 1,
-    NFA: 1,
-  }
+	const engine_mode_popup_map = {
+		"Free Style": 0,
+		DFA: 1,
+		NFA: 1,
+	};
 
-  function handleBackdropClick() {
-    if (!showPopup) return
+	function handleBackdropClick() {
+		if (!showPopup) return;
 
-    if (transitionList[activeTransition]?.isDraft) {
-      removeTransitionById(activeTransition)
-    }
+		if (transitionList[activeTransition]?.isDraft) {
+			removeTransitionById(activeTransition);
+		}
 
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-  }
+		store.set(show_popup, false);
+		store.set(active_transition, null);
+	}
 
-  return (
-    <div
-      onMouseDown={handleBackdropClick}
-      className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
-        showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-      }`}
-    >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]"
-      >
-        {popups[engine_mode_popup_map[EngineMode.type]]}
-      </div>
-    </div>
-  )
-}
+	return (
+		<div
+			onMouseDown={handleBackdropClick}
+			className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
+				showPopup
+					? "opacity-100 pointer-events-auto"
+					: "opacity-0 pointer-events-none"
+			}`}
+		>
+			<div
+				onMouseDown={(e) => e.stopPropagation()}
+				className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]"
+			>
+				{popups[engine_mode_popup_map[EngineMode.type]]}
+			</div>
+		</div>
+	);
+};
 
-export default Popup
+export default Popup;
 
 /******* POPUP COMPONENTS *********/
 function ChooseTransitionLabelDFA() {
-  const LanguageAlphabets = useAtomValue(engine_mode)
-  const ActiveTransition = useAtomValue(active_transition)
-  const TransitionList = useAtomValue(transition_list)
+	const LanguageAlphabets = useAtomValue(engine_mode);
+	const ActiveTransition = useAtomValue(active_transition);
+	const TransitionList = useAtomValue(transition_list);
 
-  const setShowPopup = store.set // jotai store aus ./stores
-  const [labels, setLabels] = useState([])
+	const setShowPopup = store.set; // jotai store aus ./stores
+	const [labels, setLabels] = useState([]);
 
-  useEffect(() => {
-    const currentLabel = TransitionList[ActiveTransition]?.label
-    setLabels(currentLabel ? [currentLabel] : [])
-  }, [ActiveTransition, TransitionList])
+	useEffect(() => {
+		const currentLabel = TransitionList[ActiveTransition]?.label;
+		setLabels(currentLabel ? [currentLabel] : []);
+	}, [ActiveTransition, TransitionList]);
 
-  function toggleAlphabet(val) {
-    if (labels.includes(val)) setLabels(labels.filter((x) => x !== val))
-    else setLabels([...labels, val])
-  }
+	function toggleAlphabet(val) {
+		if (labels.includes(val)) setLabels(labels.filter((x) => x !== val));
+		else setLabels([...labels, val]);
+	}
 
-  function handleCancel() {
-    if (TransitionList[ActiveTransition]?.isDraft) {
-      removeTransitionById(ActiveTransition)
-    }
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-    setLabels([])
-  }
+	function handleCancel() {
+		if (TransitionList[ActiveTransition]?.isDraft) {
+			removeTransitionById(ActiveTransition);
+		}
+		store.set(show_popup, false);
+		store.set(active_transition, null);
+		setLabels([]);
+	}
 
-  return (
-    <>
-      <p className="text-sm font-github text-center text-white mb-5 select-none">
-        Choose Input Alphabets for this transition
-      </p>
-      <div className="grid grid-cols-4 gap-5 justify-center items-center">
-        {LanguageAlphabets.alphabets.map((a) => (
-          <p
-            key={a}
-            onClick={() => toggleAlphabet(a)}
-            className={`font-github text-white text-balance ${
-              labels?.includes(a) ? 'bg-blue-500' : 'bg-secondary-bg'
-            } px-3 py-1 rounded-md border border-border-bg select-none cursor-pointer hover:scale-120 active:scale-100 transition-all ease-in-out`}
-          >
-            {a}
-          </p>
-        ))}
-      </div>
-      <div className="flex gap-3 mt-5">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <X size={16} color="#ffffff" />
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (labels.length > 0) {
-              handleTransitionSave(labels)
-              setLabels([])
-            }
-          }}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <CircleCheck size={18} color="#ffffff" />
-          Done
-        </button>
-      </div>
-    </>
-  )
+	return (
+		<>
+			<p className="text-sm font-github text-center text-white mb-5 select-none">
+				Choose Input Alphabets for this transition
+			</p>
+			<div className="grid grid-cols-4 gap-5 justify-center items-center">
+				{LanguageAlphabets.alphabets.map((a) => (
+					<p
+						key={a}
+						onClick={() => toggleAlphabet(a)}
+						className={`font-github text-white text-balance ${
+							labels?.includes(a) ? "bg-blue-500" : "bg-secondary-bg"
+						} px-3 py-1 rounded-md border border-border-bg select-none cursor-pointer hover:scale-120 active:scale-100 transition-all ease-in-out`}
+					>
+						{a}
+					</p>
+				))}
+			</div>
+			<div className="flex gap-3 mt-5">
+				<button
+					type="button"
+					onClick={handleCancel}
+					className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+				>
+					<X size={16} color="#ffffff" />
+					Abbrechen
+				</button>
+				<button
+					type="button"
+					onClick={() => {
+						if (labels.length > 0) {
+							handleTransitionSave(labels);
+							setLabels([]);
+						}
+					}}
+					className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+				>
+					<CircleCheck size={18} color="#ffffff" />
+					Done
+				</button>
+			</div>
+		</>
+	);
 }
 
 function ChooseTransitionLabelFreeStyle() {
-  const MAX_IO_BITS = 10
-  const MIN_IO_BITS = 1
-  const ActiveTransition = useAtomValue(active_transition)
-  const TransitionList = useAtomValue(transition_list)
-  const FsmType = useAtomValue(fsm_type)
-  const showPopup = useAtomValue(show_popup)
-  const [inputValue, setInputValue] = useState('')
-  const [outputValue, setOutputValue] = useState('')
-  const [inputBits, setInputBits] = useState(1)
-  const [outputBits, setOutputBits] = useState(1)
-  const inputRef = useRef(null)
-  const outputRef = useRef(null)
+	const MAX_IO_BITS = 10;
+	const MIN_IO_BITS = 1;
+	const ActiveTransition = useAtomValue(active_transition);
+	const TransitionList = useAtomValue(transition_list);
+	const FsmType = useAtomValue(fsm_type);
+	const showPopup = useAtomValue(show_popup);
+	const [inputValue, setInputValue] = useState("");
+	const [outputValue, setOutputValue] = useState("");
+	const [inputBits, setInputBits] = useState(1);
+	const [outputBits, setOutputBits] = useState(1);
+	const inputRef = useRef(null);
+	const outputRef = useRef(null);
 
-  useEffect(() => {
-    if (showPopup) {
-      inputRef.current?.focus()
-    }
-  }, [showPopup])
+	useEffect(() => {
+		if (showPopup) {
+			inputRef.current?.focus();
+		}
+	}, [showPopup]);
 
-  function clampBitCount(value) {
-    return Math.min(MAX_IO_BITS, Math.max(MIN_IO_BITS, Number(value) || MIN_IO_BITS))
-  }
+	function clampBitCount(value) {
+		return Math.min(
+			MAX_IO_BITS,
+			Math.max(MIN_IO_BITS, Number(value) || MIN_IO_BITS),
+		);
+	}
 
-  function getSelectedBitCounts(transitions) {
-    let maxInput = 1
-    let maxOutput = 1
+	function getSelectedBitCounts(transitions) {
+		let maxInput = 1;
+		let maxOutput = 1;
 
-    for (const tr of transitions ?? []) {
-      if (!tr) continue
-      const [inp = '', out = ''] = String(tr.label ?? '').split('/')
-      maxInput = Math.max(maxInput, inp.length || 1)
-      if (FsmType !== 'moore') {
-        maxOutput = Math.max(maxOutput, out.length || 1)
-      }
-    }
+		for (const tr of transitions ?? []) {
+			if (!tr) continue;
+			const [inp = "", out = ""] = String(tr.label ?? "").split("/");
+			maxInput = Math.max(maxInput, inp.length || 1);
+			if (FsmType !== "moore") {
+				maxOutput = Math.max(maxOutput, out.length || 1);
+			}
+		}
 
-    if (FsmType === 'moore') {
-      for (const tr of transitions ?? []) {
-        if (!tr) continue
-        const node = store.get(node_list)?.[tr.to]
-        maxOutput = Math.max(maxOutput, String(node?.moore_output ?? '').length || 1)
-      }
-    }
+		if (FsmType === "moore") {
+			for (const tr of transitions ?? []) {
+				if (!tr) continue;
+				const node = store.get(node_list)?.[tr.to];
+				maxOutput = Math.max(
+					maxOutput,
+					String(node?.moore_output ?? "").length || 1,
+				);
+			}
+		}
 
-    return {
-      input: clampBitCount(maxInput),
-      output: clampBitCount(maxOutput),
-    }
-  }
+		return {
+			input: clampBitCount(maxInput),
+			output: clampBitCount(maxOutput),
+		};
+	}
 
-  function keepAllowedSymbols(value, maxLength) {
-    return String(value ?? '')
-      .replace(/[^01x]/g, '')
-      .slice(0, clampBitCount(maxLength))
-  }
+	function keepAllowedSymbols(value, maxLength) {
+		// Display layer accepts '-' as don't-care; convert incoming 'x' to '-' for UI
+		return String(value ?? "")
+			.replace(/x/g, "-")
+			.replace(/[^01-]/g, "")
+			.slice(0, clampBitCount(maxLength));
+	}
 
-  function isValidBits(value, maxLength) {
-    const limit = clampBitCount(maxLength)
-    return value.length === limit && /^[01x]+$/.test(value)
-  }
+	function isValidBits(value, maxLength) {
+		const limit = clampBitCount(maxLength);
+		// Accept '-' in UI as don't-care; validation accepts 0/1/-
+		return value.length === limit && /^[01-]+$/.test(value);
+	}
 
-  useEffect(() => {
-    const selectedBits = getSelectedBitCounts(TransitionList)
-    setInputBits(selectedBits.input)
-    setOutputBits(selectedBits.output)
+	useEffect(() => {
+		const selectedBits = getSelectedBitCounts(TransitionList);
+		setInputBits(selectedBits.input);
+		setOutputBits(selectedBits.output);
 
-    const currentTransition = TransitionList[ActiveTransition]
-    const rawLabel = currentTransition?.isDraft ? '' : (currentTransition?.label ?? '')
-    const [input = '', output = ''] = String(rawLabel).split('/')
-    setInputValue(keepAllowedSymbols(input, selectedBits.input))
-    setOutputValue(keepAllowedSymbols(output, selectedBits.output))
-  }, [ActiveTransition, TransitionList])
+		const currentTransition = TransitionList[ActiveTransition];
+		const rawLabel = currentTransition?.isDraft
+			? ""
+			: (currentTransition?.label ?? "");
+		const [input = "", output = ""] = String(rawLabel).split("/");
+		setInputValue(keepAllowedSymbols(input, selectedBits.input));
+		setOutputValue(keepAllowedSymbols(output, selectedBits.output));
+	}, [ActiveTransition, TransitionList]);
 
-  function handleCancel() {
-    if (TransitionList[ActiveTransition]?.isDraft) {
-      removeTransitionById(ActiveTransition)
-    }
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-    setInputValue('')
-    setOutputValue('')
-  }
+	function handleCancel() {
+		if (TransitionList[ActiveTransition]?.isDraft) {
+			removeTransitionById(ActiveTransition);
+		}
+		store.set(show_popup, false);
+		store.set(active_transition, null);
+		setInputValue("");
+		setOutputValue("");
+	}
 
-  function handleSubmit() {
-    // Read directly from the DOM to ensure we get the latest value, even if the user hasn't triggered an onChange event
-    const input = keepAllowedSymbols(inputRef.current?.value ?? '', inputBits).trim()
-    const output = outputRef.current
-      ? keepAllowedSymbols(outputRef.current.value ?? '', outputBits).trim()
-      : ''
-    const valid =
-      isValidBits(input, inputBits) &&
-      (FsmType === 'moore' ? true : isValidBits(output, outputBits))
-    const normalizedInput = input
-    const normalizedOutput = output
+	function handleSubmit() {
+		// Read directly from the DOM to ensure we get the latest value, even if the user hasn't triggered an onChange event
+		const input = keepAllowedSymbols(
+			inputRef.current?.value ?? "",
+			inputBits,
+		).trim();
+		const output = outputRef.current
+			? keepAllowedSymbols(outputRef.current.value ?? "", outputBits).trim()
+			: "";
+		const valid =
+			isValidBits(input, inputBits) &&
+			(FsmType === "moore" ? true : isValidBits(output, outputBits));
+		const normalizedInput = input;
+		const normalizedOutput = output;
 
-    if (!valid) {
-      if (TransitionList[ActiveTransition]?.isDraft) {
-        removeTransitionById(ActiveTransition)
-        sendExportToMainState()
-      }
-      setInputValue('')
-      setOutputValue('')
-      store.set(show_popup, false)
-      store.set(active_transition, null)
-      return
-    }
+		// Persist using 'x' as internal don't-care, convert '-' back to 'x'
+		const persistedInput = String(normalizedInput ?? "").replace(/-/g, "x");
+		const persistedOutput = String(normalizedOutput ?? "").replace(/-/g, "x");
 
-    handleTransitionSave(
-      FsmType === 'moore' ? [normalizedInput] : [`${normalizedInput}/${normalizedOutput}`],
-    )
-    setInputValue('')
-    setOutputValue('')
-  }
+		if (!valid) {
+			if (TransitionList[ActiveTransition]?.isDraft) {
+				removeTransitionById(ActiveTransition);
+				sendExportToMainState();
+			}
+			setInputValue("");
+			setOutputValue("");
+			store.set(show_popup, false);
+			store.set(active_transition, null);
+			return;
+		}
 
-  function handleInputKeyDown(event) {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      handleSubmit()
-    }
+		handleTransitionSave(
+			FsmType === "moore"
+				? [persistedInput]
+				: [`${persistedInput}/${persistedOutput}`],
+		);
+		setInputValue("");
+		setOutputValue("");
+	}
 
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      handleCancel()
-    }
-  }
+	function handleInputKeyDown(event) {
+		if (event.key === "Enter") {
+			event.preventDefault();
+			handleSubmit();
+		}
 
-  return (
-    <>
-      <span className="w-full mb-2">
-        <p className="font-github text-white text-xs pb-1">input: </p>
-        <input
-          ref={inputRef}
-          value={inputValue}
-          className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-          type="text"
-          maxLength={inputBits}
-          pattern="[01x]*"
-          onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value, inputBits))}
-          onKeyDown={handleInputKeyDown}
-          placeholder=""
-        />
-      </span>
-      {FsmType !== 'moore' && (
-        <span className="w-full">
-          <p className="font-github text-white text-xs pb-1">output: </p>
-          <input
-            ref={outputRef}
-            value={outputValue}
-            className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-            type="text"
-            maxLength={outputBits}
-            pattern="[01x]*"
-            onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
-            onKeyDown={handleInputKeyDown}
-            placeholder=""
-          />
-        </span>
-      )}
-      <div className="flex gap-3 mt-5">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <X size={16} color="#ffffff" />
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <CircleCheck size={18} color="#ffffff" />
-          Done
-        </button>
-      </div>
-    </>
-  )
+		if (event.key === "Escape") {
+			event.preventDefault();
+			handleCancel();
+		}
+	}
+
+	return (
+		<>
+			<span className="w-full mb-2">
+				<p className="font-github text-white text-xs pb-1">input: </p>
+				<input
+					ref={inputRef}
+					value={inputValue}
+					className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+					type="text"
+					maxLength={inputBits}
+					pattern="[01-]*"
+					onChange={(e) =>
+						setInputValue(keepAllowedSymbols(e.target.value, inputBits))
+					}
+					onKeyDown={handleInputKeyDown}
+					placeholder=""
+				/>
+			</span>
+			{FsmType !== "moore" && (
+				<span className="w-full">
+					<p className="font-github text-white text-xs pb-1">output: </p>
+					<input
+						ref={outputRef}
+						value={outputValue}
+						className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+						type="text"
+						maxLength={outputBits}
+						pattern="[01-]*"
+						onChange={(e) =>
+							setOutputValue(keepAllowedSymbols(e.target.value, outputBits))
+						}
+						onKeyDown={handleInputKeyDown}
+						placeholder=""
+					/>
+				</span>
+			)}
+			<div className="flex gap-3 mt-5">
+				<button
+					type="button"
+					onClick={handleCancel}
+					className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+				>
+					<X size={16} color="#ffffff" />
+					Cancel
+				</button>
+				<button
+					type="button"
+					onClick={handleSubmit}
+					className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+				>
+					<CircleCheck size={18} color="#ffffff" />
+					Done
+				</button>
+			</div>
+		</>
+	);
 }

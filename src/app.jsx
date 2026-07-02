@@ -1,92 +1,92 @@
-import { useAtomValue } from 'jotai'
-import { useEffect } from 'react'
-import Alert from './components/Alert'
-import Controls from './components/Controls'
-import Dock from './components/Dock'
-import Editor from './components/Editor'
-import Guide from './components/Guide'
-import Popup from './components/Popup'
-import SaveDialog from './components/SaveDialog'
-import Settings from './components/Settings'
-import TopDock from './components/TopDock'
-import TransitionTable from './components/TransitionTable'
-import ConfirmDialog from './components/ConfirmDialog'
-import { handleShortCuts } from './lib/editor'
-import { node_list, transition_list, show_popup } from './lib/stores'
-import { sendExportToMainState } from './lib/export.js'
+import { useAtomValue } from "jotai";
+import { useEffect } from "react";
+import Alert from "./components/Alert";
+import Controls from "./components/Controls";
+import Dock from "./components/Dock";
+import Editor from "./components/Editor";
+import Guide from "./components/Guide";
+import Popup from "./components/Popup";
+import SaveDialog from "./components/SaveDialog";
+import Settings from "./components/Settings";
+import TopDock from "./components/TopDock";
+import TransitionTable from "./components/TransitionTable";
+import ConfirmDialog from "./components/ConfirmDialog";
+import { handleShortCuts } from "./lib/editor";
+import { node_list, transition_list, show_popup } from "./lib/stores";
+import { sendExportToMainState } from "./lib/export.js";
 
 export function App() {
-  // CUSTOM: set nodes and transitions for live export
-  const nodes = useAtomValue(node_list)
-  const transitions = useAtomValue(transition_list)
-  const popupVisible = useAtomValue(show_popup)
+	// CUSTOM: set nodes and transitions for live export
+	const nodes = useAtomValue(node_list);
+	const transitions = useAtomValue(transition_list);
+	const popupVisible = useAtomValue(show_popup);
 
-  // CUSTOM: live export states and transitions when store changed,
-  // but skip while the label popup is open
-  useEffect(() => {
-    if (popupVisible) return
-    const timeout = setTimeout(() => {
-      sendExportToMainState()
-    }, 100)
+	// CUSTOM: live export states and transitions when store changed,
+	// but skip while the label popup is open
+	useEffect(() => {
+		if (popupVisible) return;
+		const timeout = setTimeout(() => {
+			sendExportToMainState();
+		}, 100);
 
-    return () => clearTimeout(timeout)
-  }, [nodes, transitions, popupVisible])
+		return () => clearTimeout(timeout);
+	}, [nodes, transitions, popupVisible]);
 
-  useEffect(() => {
-    const handleContextmenu = (e) => {
-      e.preventDefault()
-    }
-    document.addEventListener('contextmenu', handleContextmenu)
-    return function cleanup() {
-      document.removeEventListener('contextmenu', handleContextmenu)
-    }
-  }, [])
+	useEffect(() => {
+		const handleContextmenu = (e) => {
+			e.preventDefault();
+		};
+		document.addEventListener("contextmenu", handleContextmenu);
+		return function cleanup() {
+			document.removeEventListener("contextmenu", handleContextmenu);
+		};
+	}, []);
 
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      // ignore when Ctrl/Meta are pressed (preserve browser/app shortcuts)
-      // require Alt to be held for editor shortcuts so they don't conflict with the main app
-      if (event.ctrlKey || event.metaKey) return
-      if (!event.altKey) return
-      const target = event.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        target?.isContentEditable
-      ) {
-        return
-      }
+	useEffect(() => {
+		const handleKeyPress = (event) => {
+			// ignore when Ctrl/Meta are pressed (preserve browser/app shortcuts)
+			// require Alt to be held for editor shortcuts so they don't conflict with the main app
+			if (event.ctrlKey || event.metaKey) return;
+			if (!event.altKey) return;
+			const target = event.target;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				target instanceof HTMLSelectElement ||
+				target?.isContentEditable
+			) {
+				return;
+			}
 
-      handleShortCuts(event.key)
-    }
+			handleShortCuts(event.key);
+		};
 
-    document.addEventListener('keyup', handleKeyPress)
+		document.addEventListener("keyup", handleKeyPress);
 
-    return () => {
-      document.removeEventListener('keyup', handleKeyPress)
-    }
-  }, [])
+		return () => {
+			document.removeEventListener("keyup", handleKeyPress);
+		};
+	}, []);
 
-  return (
-    <div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
-      <Editor />
+	return (
+		<div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
+			<Editor />
 
-      <Dock />
+			<Dock />
 
-      <Settings />
+			<Settings />
 
-      <Controls />
+			<Controls />
 
-      <Alert />
+			<Alert />
 
-      <Popup />
+			<Popup />
 
-      <SaveDialog />
+			<SaveDialog />
 
-      <TransitionTable />
+			<TransitionTable />
 
-      <ConfirmDialog />
-    </div>
-  )
+			<ConfirmDialog />
+		</div>
+	);
 }

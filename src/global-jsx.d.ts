@@ -1,4 +1,4 @@
-declare module '*.jsx' {
-  const component: unknown;
-  export default component;
+declare module "*.jsx" {
+	const component: unknown;
+	export default component;
 }

@@ -1,18 +1,18 @@
 // This file contains all the global state variables
 
-import { atom, createStore } from 'jotai'
+import { atom, createStore } from "jotai";
 
 // Global State for konva stage reference
-export const stage_ref = atom(null)
+export const stage_ref = atom(null);
 
 // Global Store to hold value of Konva Stage ref
-export const editor_state = atom(null)
+export const editor_state = atom(null);
 
 // Global Store to hold value of Konva Layer ref
-export const layer_ref = atom(null)
+export const layer_ref = atom(null);
 
 // Global Store to keep track of States
-export const node_list = atom([])
+export const node_list = atom([]);
 // NEW: A single item of node_list has the following shape:
 /*
 {
@@ -37,7 +37,7 @@ export const node_list = atom([])
 */
 
 // Global Store to keep track of Transitions
-export const transition_list = atom([])
+export const transition_list = atom([]);
 
 // A array to keep track of deleted State Id's
 // Why?
@@ -46,50 +46,50 @@ export const transition_list = atom([])
  *  The Next time the user adds a new state it should have the name q1 and not q3.
  * For this, we keep an array of state id's previously deleted
  */
-export const deleted_nodes = atom([])
+export const deleted_nodes = atom([]);
 
 // Kepp track of the currently selected Node
-export const current_selected = atom(null)
+export const current_selected = atom(null);
 
 // Keep track of which state is the initial state
-export const initial_state = atom(null)
+export const initial_state = atom(null);
 
 // Keep track of the two states that are clicked on when in Connect Mode
-export const transition_pairs = atom(null)
+export const transition_pairs = atom(null);
 
 // NEW: Keep track of Fsm Type which has been set in project
 // FsmType = 'mealy' | 'moore'
-export const fsm_type = atom('mealy')
+export const fsm_type = atom("mealy");
 
 // Alert Message
-export const alert = atom('')
+export const alert = atom("");
 
 // Store to keep track of current FSM Mode
 export const engine_mode = atom({
-  type: 'Free Style',
-  alphabets: [],
-})
+	type: "Free Style",
+	alphabets: [],
+});
 
 // Show Popup
-export const show_popup = atom(false)
-export const active_transition = atom(null)
+export const show_popup = atom(false);
+export const active_transition = atom(null);
 
 // Store to cache contributors
-export const contributors_data = atom(null)
+export const contributors_data = atom(null);
 
 // Store to toggle Transition Table visibility
-export const show_transition_table = atom(false)
+export const show_transition_table = atom(false);
 
 // Store to disable keyboard shortcuts while dock menus are open
-export const shortcut_context_locked = atom(false)
+export const shortcut_context_locked = atom(false);
 
 // Store for Confirm Dialog
 export const confirm_dialog_atom = atom({
-  isOpen: false,
-  message: '',
-  onConfirm: null,
-  onCancel: null,
-})
+	isOpen: false,
+	message: "",
+	onConfirm: null,
+	onCancel: null,
+});
 
 // Export store provider
-export const store = createStore()
+export const store = createStore();
