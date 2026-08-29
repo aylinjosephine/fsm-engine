@@ -1,6 +1,7 @@
 import { useAtom, useAtomValue } from 'jotai'
-import { Activity, CircleCheck, CircleCheckBig, CirclePower, CircleX } from 'lucide-react'
+import { CircleCheck, CirclePower, CircleX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { MAX_STATE_NAME_LENGTH, sanitizeStateName } from '../lib/constants'
 import { HandleSaveSettings } from '../lib/settings'
 import {
   current_selected,
@@ -22,11 +23,9 @@ const Settings = () => {
   const [stateName, setStateName] = useState('')
   const [mooreBits, setMooreBits] = useState([])
   const [stateColor, setStateColor] = useState('')
-  const [stateType, setStateType] = useState({
-    initial: false,
-    intermediate: false,
-    final: false,
-  })
+  const [isInitial, setIsInitial] = useState(false)
+  const [invalidAttempt, setInvalidAttempt] = useState(false)
+  const [hint, setHint] = useState('')
   // State Hooks for input fields
   const nameInputRef = useRef(null)
   const mooreRefs = useRef([])
@@ -35,6 +34,18 @@ const Settings = () => {
     if (editorState === 'settings') {
       nameInputRef.current?.focus()
     }
+  }, [editorState])
+
+  useEffect(() => {
+    if (editorState !== 'settings') return
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        handleCancel()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
   }, [editorState])
 
   // Get the existing values of the State properties
@@ -46,38 +57,15 @@ const Settings = () => {
 
     setStateName(name)
     setMooreBits(toBits(mooreOutput, outputBitCount))
+    setInvalidAttempt(false)
+    setHint('')
     setStateColor(color)
-    setStateType(type)
+    setIsInitial(!!type?.initial)
   }
 
-  // State Type Change Function
-  function HandleStateTypeChange(type) {
-    if (type === 'initial') {
-      setStateType({
-        ...stateType,
-        initial: !stateType.initial,
-        intermediate: false,
-      })
-      return
-    }
-
-    if (type === 'final') {
-      setStateType({
-        ...stateType,
-        final: !stateType.final,
-        intermediate: false,
-      })
-      return
-    }
-
-    if (type === 'intermediate') {
-      setStateType({
-        final: false,
-        initial: false,
-        intermediate: !stateType.intermediate,
-      })
-      return
-    }
+  // Sanitize the state name (no HTML/script injection)
+  function handleNameChange(rawValue) {
+    setStateName(sanitizeStateName(rawValue))
   }
 
   function handleCancel() {
@@ -108,7 +96,12 @@ const Settings = () => {
   function handleMooreBitChange(index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) return
+    if (!/^[01-]$/.test(ch)) {
+      setHint('Only the characters 0, 1 or x are allowed.')
+      return
+    }
+    setInvalidAttempt(false)
+    setHint('')
     setMooreBits((prev) => {
       const next = [...prev]
       while (next.length <= index) next.push('')
@@ -124,9 +117,6 @@ const Settings = () => {
     if (event.key === 'Enter') {
       event.preventDefault()
       handleSave()
-    } else if (event.key === 'Escape') {
-      event.preventDefault()
-      handleCancel()
     } else if (event.key === 'Backspace') {
       event.preventDefault()
       if (mooreBits[index]) {
@@ -154,28 +144,62 @@ const Settings = () => {
     }
   }
 
-  function handleSave() {
-    const mooreOutputValue = mooreBits.join('').replace(/-/g, 'x')
-    HandleSaveSettings(
-      stateName,
-      stateColor,
-      stateType,
-      fsmType === 'moore' ? normalizeOutputBits(mooreOutputValue) : '',
+  function isComplete(arr, length) {
+    return (
+      arr.length >= length &&
+      arr.slice(0, length).every((bit) => bit === '0' || bit === '1' || bit === '-')
     )
   }
 
-  // Validate the Statetype Change
-  useEffect(() => {
-    // Make sure that the user does not uncheck everything
-    // A state cannot be neither initial, intermeditate, or final
-    if (
-      stateType.initial === false &&
-      stateType.intermediate === false &&
-      stateType.final === false
-    ) {
-      setStateType({ initial: false, intermediate: true, final: false })
+  // Build a problem-specific hint when the Moore output is not valid.
+  function getValidationHint() {
+    if (fsmType !== 'moore') return ''
+    if (isComplete(mooreBits, outputBitCount)) return ''
+    const hasInvalid = mooreBits
+      .slice(0, outputBitCount)
+      .some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
+    if (hasInvalid) return 'Only the characters 0, 1 or x are allowed.'
+    return `Please fill in ${outputBitCount} output bit${outputBitCount === 1 ? '' : 's'}.`
+  }
+
+  function handleBackdropClick() {
+    if (!sanitizeStateName(stateName).trim()) {
+      setInvalidAttempt(true)
+      setHint('Please enter a state name.')
+      return
     }
-  }, [stateType])
+    const outputOk = fsmType === 'moore' ? isComplete(mooreBits, outputBitCount) : true
+    if (!outputOk) {
+      setInvalidAttempt(true)
+      setHint(getValidationHint())
+      return
+    }
+    setEditorState(null)
+  }
+
+  function handleSave() {
+    const name = sanitizeStateName(stateName)
+    if (!name.trim()) {
+      setInvalidAttempt(true)
+      setHint('Please enter a state name.')
+      return
+    }
+    const outputOk = fsmType === 'moore' ? isComplete(mooreBits, outputBitCount) : true
+    if (!outputOk) {
+      setInvalidAttempt(true)
+      setHint(getValidationHint())
+      return
+    }
+    setInvalidAttempt(false)
+    setHint('')
+    const mooreOutputValue = mooreBits.join('').replace(/-/g, 'x')
+    HandleSaveSettings(
+      name,
+      stateColor,
+      { initial: isInitial, intermediate: !isInitial, final: false },
+      fsmType === 'moore' ? normalizeOutputBits(mooreOutputValue) : '',
+    )
+  }
 
   useEffect(() => {
     if (currentSelected) setDefaultValues()
@@ -183,96 +207,88 @@ const Settings = () => {
 
   return (
     <div
+      onMouseDown={handleBackdropClick}
       className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-secondary-bg/30 ${
         editorState !== 'settings' && 'hidden'
       }`}
     >
-      <div className="flex flex-col gap-5 justify-center px-5 py-5 w-fit h-fit bg-primary-bg border border-border-bg rounded-3xl shadow-[0px_0px_50px_0px_#000000]/70 select-none">
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="flex flex-col gap-5 justify-center px-5 py-5 w-fit h-fit bg-primary-bg border border-border-bg rounded-3xl shadow-[0px_0px_50px_0px_#000000]/70 select-none"
+      >
         <h2 className="font-github text-2xl text-white font-medium text-center">State Options</h2>
 
         <span>
-          <p className="font-github text-white text-base pb-2 font-semibold">State Name</p>
+          <p className="font-github text-white text-sm pb-2 font-semibold">State Name</p>
           <input
             ref={nameInputRef}
             value={stateName}
-            className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+            maxLength={MAX_STATE_NAME_LENGTH}
+            className={`px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border outline-none transition-all ease-in-out ${
+              invalidAttempt && !sanitizeStateName(stateName).trim()
+                ? 'border-red-500'
+                : 'border-border-bg'
+            } hover:border-white/30 focus:border-blue-500`}
             type="text"
-            onChange={(e) => setStateName(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
           />
         </span>
 
         <span>
-          <p className="font-github text-white text-base pb-2">State Color</p>
-          <input
-            type="color"
-            className="rounded-lg border-3 border-border-bg"
-            value={stateColor}
-            onChange={(e) => setStateColor(e.target.value)}
-          />
-        </span>
-
-        <span>
-          <p className="font-github text-white text-base pb-2">State Type</p>
-
-          <span className="flex gap-2">
+          <p className="font-github text-white text-sm pb-2 font-semibold">State Color</p>
+          <div className="flex items-center gap-4">
+            <input
+              type="color"
+              className="rounded-lg border border-border-bg"
+              value={stateColor}
+              onChange={(e) => setStateColor(e.target.value)}
+            />
             <span
-              onClick={() => HandleStateTypeChange('initial')}
-              className={`flex items-center justify-center gap-2  w-fit px-2 py-2 border ${
-                stateType.initial ? 'bg-blue-500' : 'bg-secondary-bg'
-              } border-border-bg rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out`}
+              onClick={() => setIsInitial((v) => !v)}
+              role="button"
+              aria-pressed={isInitial}
+              className={`flex items-center justify-center gap-2 px-3 py-2 border rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out ${
+                isInitial ? 'bg-blue-500 border-blue-500' : 'bg-secondary-bg border-border-bg'
+              }`}
             >
               <CirclePower color="#ffffff" size={18} />
-              <p className="text-white font-github text-sm">Initial State</p>
+              <p className="text-white font-github text-xs font-medium">Initial State</p>
             </span>
-
-            <span
-              onClick={() => HandleStateTypeChange('intermediate')}
-              className={`flex items-center justify-center gap-2 ${
-                stateType.intermediate ? 'bg-blue-500' : 'bg-secondary-bg'
-              } w-fit px-2 py-2 border border-border-bg rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out`}
-            >
-              <Activity color="#ffffff" size={18} />
-              <p className="text-white font-github text-sm">Intermediate State</p>
-            </span>
-
-            <span
-              onClick={() => HandleStateTypeChange('final')}
-              className={`flex items-center justify-center gap-2 ${
-                stateType.final ? 'bg-blue-500' : 'bg-secondary-bg'
-              } w-fit px-2 py-2 border border-border-bg rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out`}
-            >
-              <CircleCheckBig color="#ffffff" size={18} />
-              <p className="text-white font-github text-sm">Final State</p>
-            </span>
-          </span>
-
-          {fsmType === 'moore' && (
-            <span>
-              <p className="font-github text-white text-xs pb-1.5 font-medium">
-                State Output · {outputBitCount} bit{outputBitCount === 1 ? '' : 's'}
-              </p>
-              <div className="flex gap-1.5">
-                {Array.from({ length: Math.min(outputBitCount, MAX_IO_BITS) }, (_, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => {
-                      mooreRefs.current[i] = el
-                    }}
-                    type="text"
-                    maxLength={1}
-                    value={mooreBits[i] ?? ''}
-                    aria-label={`state output bit ${i + 1}`}
-                    className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                      mooreBits[i] === '-' ? 'text-amber-300' : 'text-white'
-                    } border-border-bg hover:border-white/40 focus:border-blue-500`}
-                    onChange={(e) => handleMooreBitChange(i, e.target.value)}
-                    onKeyDown={(e) => handleMooreKeyDown(i, e)}
-                  />
-                ))}
-              </div>
-            </span>
-          )}
+          </div>
         </span>
+
+        {fsmType === 'moore' && (
+          <span>
+            <p className="font-github text-white text-sm pb-2 font-semibold">
+              Output: {outputBitCount} bit{outputBitCount === 1 ? '' : 's'}
+            </p>
+            <div className="flex gap-1.5">
+              {Array.from({ length: Math.min(outputBitCount, MAX_IO_BITS) }, (_, i) => (
+                <input
+                  key={i}
+                  ref={(el) => {
+                    mooreRefs.current[i] = el
+                  }}
+                  type="text"
+                  maxLength={1}
+                  value={mooreBits[i] ?? ''}
+                  aria-label={`state output bit ${i + 1}`}
+                  className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
+                    mooreBits[i] === '-' ? 'text-amber-300' : 'text-white'
+                  } ${
+                    invalidAttempt && !(mooreBits[i] ?? '') ? 'border-red-500' : 'border-border-bg'
+                  } hover:border-white/40 focus:border-blue-500`}
+                  onChange={(e) => handleMooreBitChange(i, e.target.value)}
+                  onKeyDown={(e) => handleMooreKeyDown(i, e)}
+                />
+              ))}
+            </div>
+          </span>
+        )}
+
+        <p className="min-h-[16px] max-w-[260px] text-[11px] text-red-400 font-github text-center select-none">
+          {hint}
+        </p>
 
         <span className="flex gap-5 items-center justify-center my-2 w-full">
           <span

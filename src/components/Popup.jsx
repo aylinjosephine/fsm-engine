@@ -10,39 +10,14 @@ import {
   store,
   transition_list,
 } from '../lib/stores'
-import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
+import {
+  findOverlappingTransition,
+  handleTransitionSave,
+  removeTransitionById,
+} from '../lib/transitions'
 
 const Popup = () => {
-  const showPopup = useAtomValue(show_popup)
-  const activeTransition = useAtomValue(active_transition)
-  const transitionList = useAtomValue(transition_list)
-
-  function handleBackdropClick() {
-    if (!showPopup) return
-
-    if (transitionList[activeTransition]?.isDraft) {
-      removeTransitionById(activeTransition)
-    }
-
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-  }
-
-  return (
-    <div
-      onMouseDown={handleBackdropClick}
-      className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
-        showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-      }`}
-    >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-3xl border border-border-bg shadow-[0px_0px_50px_0px_#000000]/70"
-      >
-        <ChooseTransitionLabel />
-      </div>
-    </div>
-  )
+  return <ChooseTransitionLabel />
 }
 
 export default Popup
@@ -63,6 +38,7 @@ function ChooseTransitionLabel() {
   const [inputBitsArr, setInputBitsArr] = useState([])
   const [outputBitsArr, setOutputBitsArr] = useState([])
   const [invalidAttempt, setInvalidAttempt] = useState(false)
+  const [hint, setHint] = useState('')
   const inputRefs = useRef([])
   const outputRefs = useRef([])
 
@@ -84,6 +60,25 @@ function ChooseTransitionLabel() {
     )
   }
 
+  // Build a problem-specific hint when the input is not valid
+  function getValidationHint() {
+    const inputComplete = isComplete(inputBitsArr, inputBits)
+    const outputComplete = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
+    if (inputComplete && outputComplete) return ''
+    const hasInvalid = (arr, len) =>
+      arr.slice(0, len).some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
+    if (
+      hasInvalid(inputBitsArr, inputBits) ||
+      (FsmType !== 'moore' && hasInvalid(outputBitsArr, outputBits))
+    ) {
+      return 'Only the characters 0, 1 or x are allowed.'
+    }
+    const parts = []
+    if (!inputComplete) parts.push(`${inputBits} input bit${inputBits === 1 ? '' : 's'}`)
+    if (!outputComplete) parts.push(`${outputBits} output bit${outputBits === 1 ? '' : 's'}`)
+    return `Please fill in ${parts.join(' and ')}.`
+  }
+
   useEffect(() => {
     if (!showPopup) return
     const currentTransition = TransitionList[ActiveTransition]
@@ -92,9 +87,22 @@ function ChooseTransitionLabel() {
     setInputBitsArr(toBits(input, inputBits))
     setOutputBitsArr(toBits(output, outputBits))
     setInvalidAttempt(false)
+    setHint('')
     // Focus the first bit box once the boxes are rendered
     requestAnimationFrame(() => inputRefs.current[0]?.focus())
   }, [showPopup, ActiveTransition, TransitionList, inputBits, outputBits])
+
+  useEffect(() => {
+    if (!showPopup) return
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        handleCancel()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showPopup, TransitionList, ActiveTransition])
 
   const hasOutput = FsmType !== 'moore'
 
@@ -143,8 +151,12 @@ function ChooseTransitionLabel() {
   function handleBitChange(kind, index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) return
+    if (!/^[01-]$/.test(ch)) {
+      setHint('Only the characters 0, 1 or x are allowed.')
+      return
+    }
     setInvalidAttempt(false)
+    setHint('')
     const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
     setter((prev) => {
       const next = [...prev]
@@ -188,9 +200,6 @@ function ChooseTransitionLabel() {
     if (event.key === 'Enter') {
       event.preventDefault()
       handleSubmit()
-    } else if (event.key === 'Escape') {
-      event.preventDefault()
-      handleCancel()
     } else if (event.key === 'Backspace') {
       event.preventDefault()
       handleBackspace(kind, index)
@@ -224,6 +233,29 @@ function ChooseTransitionLabel() {
     store.set(active_transition, null)
   }
 
+  function handleBackdropClick() {
+    if (!showPopup) return
+    const inputOk = isComplete(inputBitsArr, inputBits)
+    const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
+    if (!inputOk || !outputOk) {
+      // Keep the popup open and highlight the empty fields
+      setInvalidAttempt(true)
+      setHint(getValidationHint())
+      return
+    }
+    const persistedInput = inputBitsArr.join('').replace(/-/g, 'x')
+    if (findOverlappingTransition(persistedInput)) {
+      setInvalidAttempt(true)
+      setHint('A transition with this input pattern already exists for this state.')
+      return
+    }
+    if (TransitionList[ActiveTransition]?.isDraft) {
+      removeTransitionById(ActiveTransition)
+    }
+    store.set(show_popup, false)
+    store.set(active_transition, null)
+  }
+
   function handleSubmit() {
     const input = inputBitsArr.join('')
     const output = outputBitsArr.join('')
@@ -231,16 +263,23 @@ function ChooseTransitionLabel() {
     const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
 
     if (!inputOk || !outputOk) {
-      // Keep the popup open so the user can correct the input. Empty fields
-      // stay highlighted (red border) until every bit box is filled.
+      // Keep the popup open; empty fields stay highlighted (red border)
       setInvalidAttempt(true)
+      setHint(getValidationHint())
       return
     }
 
     setInvalidAttempt(false)
+    setHint('')
     // Persist using 'x' as internal don't-care, convert '-' back to 'x'
     const persistedInput = input.replace(/-/g, 'x')
     const persistedOutput = output.replace(/-/g, 'x')
+    // do not allow saving a transition that would overlap with an existing transition for the same state
+    if (findOverlappingTransition(persistedInput)) {
+      setInvalidAttempt(true)
+      setHint('A transition with this input pattern already exists for this state.')
+      return
+    }
     handleTransitionSave(
       FsmType === 'moore' ? [persistedInput] : [`${persistedInput}/${persistedOutput}`],
     )
@@ -250,7 +289,7 @@ function ChooseTransitionLabel() {
     const total = Math.min(count, MAX_IO_BITS)
     return (
       <span className="w-full mb-2.5">
-        <p className="font-github text-white text-xs pb-1.5 font-medium">
+        <p className="font-github text-white text-sm pb-2 font-semibold">
           {label}: {total} bit{total === 1 ? '' : 's'}
         </p>
         <div className="flex gap-1.5">
@@ -279,30 +318,44 @@ function ChooseTransitionLabel() {
   }
 
   return (
-    <>
-      {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
-      {FsmType !== 'moore' &&
-        renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
-      <p className="text-[11px] text-white/60 font-github -mt-1 mb-2 select-none">
-      </p>
-      <div className="flex gap-3 mt-1">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <X size={16} color="#ffffff" />
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <CircleCheck size={18} color="#ffffff" />
-          Done
-        </button>
+    <div
+      onMouseDown={handleBackdropClick}
+      className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
+        showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-3xl border border-border-bg shadow-[0px_0px_50px_0px_#000000]/70"
+      >
+        <h2 className="font-github text-2xl text-white font-medium text-center mb-4">
+          Edit Transition
+        </h2>
+        {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
+        {FsmType !== 'moore' &&
+          renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
+        <p className="min-h-[16px] max-w-[260px] text-[11px] text-red-400 font-github -mt-1 mb-2 text-center select-none">
+          {hint}
+        </p>
+        <div className="flex gap-3 mt-1">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+          >
+            <X size={16} color="#ffffff" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+          >
+            <CircleCheck size={18} color="#ffffff" />
+            Done
+          </button>
+        </div>
       </div>
-    </>
+    </div>
   )
 }

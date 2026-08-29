@@ -6,7 +6,9 @@ import {
   alert,
   editor_state,
   fsm_type,
+  input_bit_count,
   node_list,
+  output_bit_count,
   show_popup,
   stage_ref,
   store,
@@ -173,7 +175,9 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
   const activeTransition = store.get(transition_list)[active_tr]
   if (!activeTransition) return
 
-  const { maxInput, maxOutput } = getEditorBitLengths()
+  // Use the fixed bit counts
+  const maxInput = store.get(input_bit_count) || 1
+  const maxOutput = store.get(output_bit_count) || 1
   const normalizedInputValue = String(inputValue ?? '')
     .replace(/-/g, 'x')
     .trim()
@@ -205,7 +209,7 @@ export function handleInvalidTransitionFallback(inputValue, outputValue) {
     return next
   })
 
-  store.set(alert, 'Transition invalid: stored as unresolved (next state = x...x).')
+  store.set(alert, 'The transition is invalid and was stored as unresolved (next state = x...x).')
   setTimeout(() => store.set(alert, ''), 2500)
   store.set(active_transition, null)
   sendExportToMainState()
@@ -223,6 +227,26 @@ export function handleTransitionClick(id) {
   store.set(active_transition, () => id)
 }
 
+// Existing transition from the same state overlapping the given input
+export function findOverlappingTransition(inputPattern) {
+  const active_tr = store.get(active_transition)
+  const activeTransition = store.get(transition_list)[active_tr]
+  if (!activeTransition) return null
+  const src_node = activeTransition.from
+  const groupId = getTransitionGroupId(activeTransition)
+  const normalizedInput = normalizeBitsPattern(inputPattern)
+  const allTransitions = store.get(transition_list) ?? []
+  return (
+    allTransitions.find((transition, index) => {
+      if (!transition || index === active_tr) return false
+      if (transition.from !== src_node) return false
+      if (getTransitionGroupId(transition) === groupId) return false
+      if (transition.hiddenDontCare) return false
+      return patternsOverlap(normalizedInput, getInputFromLabel(transition.label))
+    }) ?? null
+  )
+}
+
 // Handle Save on Changing a Transition's Label
 export function handleTransitionSave(labels) {
   const moore = isMooreMode()
@@ -238,13 +262,17 @@ export function handleTransitionSave(labels) {
     .filter((transitionId) => transitionId >= 0)
 
   const stringLabels = labels.map((l) => String(l).trim().replace(/-/g, 'x'))
-  const { maxInput, maxOutput } = getEditorBitLengths()
+  // Validate and pad against the fixed bit counts
+  const maxInput = store.get(input_bit_count) || 1
+  const maxOutput = store.get(output_bit_count) || 1
   for (const label of stringLabels) {
     if (moore) {
       if (label.length !== maxInput || !/^[01x]+$/.test(label)) {
         store.set(
           alert,
-          `"${label}" invalid, enter exactly ${maxInput} input bit${maxInput === 1 ? '' : 's'} using {0,1,x}!`,
+          `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
+            maxInput === 1 ? '' : 's'
+          } using only 0, 1 or x.`,
         )
         store.set(show_popup, false)
         setTimeout(() => store.set(alert, ''), 3500)
@@ -256,9 +284,9 @@ export function handleTransitionSave(labels) {
     if (!isExactBitLabel(label, maxInput, maxOutput)) {
       store.set(
         alert,
-        `"${label}" invalid, enter exactly ${maxInput} input bit${
+        `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
           maxInput === 1 ? '' : 's'
-        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using {0,1,x}!`,
+        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using only 0, 1 or x.`,
       )
       store.set(show_popup, false)
       setTimeout(() => store.set(alert, ''), 3500)
@@ -300,7 +328,7 @@ export function handleTransitionSave(labels) {
       removeTransitionById(active_tr)
       store.set(alert, 'The new transition is invalid and was discarded.')
     } else {
-      store.set(alert, 'The new transition is invalid and cannot be saved')
+      store.set(alert, 'The new transition is invalid and cannot be saved.')
     }
     setTimeout(() => store.set(alert, ''), 3500)
     return

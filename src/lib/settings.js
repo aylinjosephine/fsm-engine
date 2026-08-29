@@ -39,10 +39,8 @@ export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = 
   let changed = false
 
   if (newName !== name) {
-    const newRadius = newName.length + 35
     store.set(node_list, (prev) => {
       prev[id].name = newName
-      prev[id].radius = newRadius
       return prev
     })
     changed = true

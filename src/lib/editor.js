@@ -6,6 +6,7 @@
 
 import dagre from 'dagre'
 import Konva from 'konva'
+import { STATE_RADIUS } from './constants'
 import { sendExportToMainState } from './export'
 import { addToHistory, clearHistory, redo, undo } from './history'
 import {
@@ -28,7 +29,7 @@ import {
 const MAX_FSM_STATES = 12
 
 function notifyStateLimit() {
-  store.set(alert, `Maximum of ${MAX_FSM_STATES} states reached in the editor`)
+  store.set(alert, `The maximum of ${MAX_FSM_STATES} states has been reached in the editor.`)
   setTimeout(() => store.set(alert, ''), 2500)
 }
 
@@ -522,7 +523,7 @@ function makeCircle(position, id) {
     y: y,
     name: `q${id}`,
     fill: '#4a6fae88',
-    radius: `q${id}`.length + 35,
+    radius: STATE_RADIUS,
     type: {
       initial: id === 0,
       intermediate: id !== 0,

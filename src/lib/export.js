@@ -1,5 +1,6 @@
 // import { getDefaultStore } from 'jotai'
 
+import { STATE_RADIUS, sanitizeStateName } from './constants'
 import { getTransitionPoints } from './editor'
 import {
   deleted_nodes,
@@ -628,7 +629,7 @@ window.addEventListener('message', (event) => {
       // auto layout only on new states
       nodeAtoms[s.id] = {
         ...existing,
-        name: s.name ?? existing.name,
+        name: sanitizeStateName(s.name) || existing.name,
         x: x ?? existing.x,
         y: y ?? existing.y,
         moore_output,
@@ -649,14 +650,14 @@ window.addEventListener('message', (event) => {
     const dx = 140
     const dy = 160
 
-    const name = s.name ?? `q${s.id}`
+    const name = sanitizeStateName(s.name) || `q${s.id}`
 
     nodeAtoms[s.id] = {
       id: s.id,
       name,
       x: x ?? baseX + col * dx,
       y: y ?? baseY + row * dy,
-      radius: name.length + 35,
+      radius: STATE_RADIUS,
       fill: '#4a6fae88',
       moore_output,
       type: {
@@ -676,80 +677,6 @@ window.addEventListener('message', (event) => {
   unresolvedTransitions = []
 
   if (false && isMoore) {
-    transitions.forEach((transition) => {
-      const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
-      const baseLabelOutput = ''
-      const targetPattern = normalizePatternBits(
-        transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
-        nodeBitCount,
-        'x',
-        'left',
-      )
-      const concreteTargets = expandDontCares(targetPattern)
-
-      if (concreteTargets.length > 0) {
-        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-        if (fromExists) {
-          const targetsByResolved = new Map()
-          concreteTargets.forEach((binaryTarget) => {
-            const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
-            if (resolvedTo < 0) return
-            const key = String(resolvedTo)
-            const arr = targetsByResolved.get(key) || []
-            arr.push(binaryTarget)
-            targetsByResolved.set(key, arr)
-          })
-
-          // If the original transition is a full don't-care on input and target,
-          // treat the expanded concrete transitions as hidden don't-care so they
-          // don't render visually but remain available to be overwritten by the user.
-          const wasTargetAllDontCare = /^x+$/.test(targetPattern)
-          const isInputAllDontCare = /^x+$/.test(baseLabelInput)
-
-          targetsByResolved.forEach((binaryList, resolvedKey) => {
-            const merged = compressBinaryPatterns(binaryList)
-            merged.forEach((pattern) => {
-              renderableTransitions.push({
-                ...transition,
-                id: nextTransitionId++,
-                groupId: transition.groupId ?? transition.id ?? 0,
-                from: transition.from,
-                to: Number(resolvedKey),
-                toBinaryId: pattern,
-                input: baseLabelInput,
-                output: baseLabelOutput,
-                mealy_output: baseLabelOutput,
-                label: baseLabelInput,
-                isDraft: false,
-                hiddenDontCare: isInputAllDontCare && wasTargetAllDontCare,
-              })
-            })
-          })
-
-          return
-        }
-      }
-
-      if (shouldRenderTransition(transition)) {
-        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-        const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
-        if (fromExists && toExists) {
-          const isHiddenDontCare = /^x+$/.test(baseLabelInput) && /^x+$/.test(targetPattern)
-          renderableTransitions.push({
-            ...transition,
-            id: nextTransitionId++,
-            groupId: transition.groupId ?? transition.id ?? 0,
-            hiddenDontCare: isHiddenDontCare,
-            label: baseLabelInput,
-            output: baseLabelOutput,
-            mealy_output: baseLabelOutput,
-          })
-          return
-        }
-      }
-
-      unresolvedTransitions.push(transition)
-    })
   } else {
     const mergedTransitions = (() => {
       const grouped = new Map()
@@ -888,47 +815,6 @@ window.addEventListener('message', (event) => {
 
       unresolvedTransitions.push(transition)
     })
-  }
-
-  // For Moore: merge transitions that share the same from/to/toBinaryId by
-  // combining their input patterns (e.g. '0' + '1' -> 'x') to keep the editor
-  // compact like Mealy. The editor will expand 'x' back into concrete inputs
-  // on import.
-  if (false && isMoore && renderableTransitions.length > 0) {
-    const grouped = new Map()
-    renderableTransitions.forEach((rt) => {
-      const key = `${rt.from}:${rt.to}:${String(rt.toBinaryId ?? '')}`
-      const bucket = grouped.get(key) || []
-      bucket.push(rt)
-      grouped.set(key, bucket)
-    })
-
-    const mergedRT = []
-    grouped.forEach((bucket) => {
-      if (!bucket || bucket.length === 0) return
-      if (bucket.length === 1) {
-        mergedRT.push(bucket[0])
-        return
-      }
-
-      const inputs = bucket.map((b) => String(b.input ?? ''))
-      const fallbackLength = Math.max(1, ...inputs.map((s) => s.length))
-      const mergedInput = mergeBitPatterns(inputs, fallbackLength)
-
-      const rep = bucket[0]
-      const isInputAllDontCare = /^x+$/.test(mergedInput)
-      const wasTargetAllDontCare = /^x+$/.test(String(rep.toBinaryId ?? ''))
-
-      mergedRT.push({
-        ...rep,
-        input: mergedInput,
-        label: String(mergedInput),
-        hiddenDontCare: isInputAllDontCare && wasTargetAllDontCare,
-      })
-    })
-
-    renderableTransitions.length = 0
-    mergedRT.forEach((m) => renderableTransitions.push(m))
   }
 
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)

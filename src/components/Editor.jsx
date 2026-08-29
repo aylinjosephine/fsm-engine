@@ -102,7 +102,7 @@ const Editor = () => {
                     <Circle
                       x={0}
                       y={0}
-                      radius={2 * circle.name.length + circle.radius}
+                      radius={circle.radius}
                       fill={
                         circle.fill === '#ffffff80' || circle.fill === '#ffffff'
                           ? '#4a6fae88'
@@ -128,18 +128,27 @@ const Editor = () => {
                         fsmType === 'moore'
                           ? `${circle.name} / ${String(circle.moore_output ?? '').replace(/x/g, '-')}`
                           : circle.name
+                      // Shrink the font so the label always fits the circle
+                      const labelLength = labelText.length
+                      const availableWidth = 2 * circle.radius - 8
+                      const fontSize = Math.max(
+                        6,
+                        Math.min(16, Math.floor(availableWidth / (labelLength * 0.6))),
+                      )
 
                       return (
                         <Text
-                          x={-circle.radius - labelText.length / 2}
-                          y={-circle.radius / 6}
-                          width={2 * circle.radius + labelText.length}
-                          height={circle.radius}
+                          x={-circle.radius}
+                          y={-circle.radius / 3}
+                          width={2 * circle.radius}
+                          height={(2 * circle.radius) / 3}
                           text={labelText}
-                          fontSize={20}
+                          fontSize={fontSize}
                           fontStyle="bold"
                           fill="#ffffff"
                           align="center"
+                          verticalAlign="middle"
+                          wrap="none"
                         />
                       )
                     })()}
@@ -172,9 +181,9 @@ const Editor = () => {
             (circle) =>
               circle?.type?.initial &&
               (() => {
-                const offset = 2 * circle.radius + 2.5 * circle.name.length
-                const tailX = circle.x - offset - circle.radius / 1.5
-                const headX = circle.x - offset + circle.radius - 5
+                // The arrow offset only depends on the fixed circle radius
+                const headX = circle.x - circle.radius - 4
+                const tailX = headX - 45
                 const y = circle.y
                 return (
                   <Group key={`initial_arrow_${circle.id}`}>
