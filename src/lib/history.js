@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { node_list, transition_list, store, deleted_nodes, stage_ref } from './stores'
-import { getBezierPoint } from './editor'
+import { getLabelPosition } from './editor'
 import Konva from 'konva'
 
 // Atoms to hold the history of states
@@ -137,12 +137,11 @@ function animateRestore(targetState, getTransitionPoints, callback) {
         trShape.points(points)
 
         if (trLabel) {
-          const mid = getBezierPoint(points, 0.5)
           const transitionLabel = String(tr.label ?? '')
-          const halfW = transitionLabel.length * 4 + 5
+          const pos = getLabelPosition(points, transitionLabel, tr.fontSize, tr.fontStyle)
 
-          trLabel.x(mid.x - halfW)
-          trLabel.y(mid.y - 8)
+          trLabel.x(pos.x)
+          trLabel.y(pos.y)
         }
       }
     })

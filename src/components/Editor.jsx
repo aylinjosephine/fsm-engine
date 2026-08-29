@@ -7,6 +7,7 @@ import {
   HandleScrollWheel,
   HandleStateClick,
   HandleStateDrag,
+  getLabelPosition,
   handleInitialArrowDrop,
 } from '../lib/editor'
 import {
@@ -54,15 +55,6 @@ const Editor = () => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  function getBezierPoint(points, t = 0.5) {
-    const [x1, y1, cx, cy, x2, y2] = points
-
-    return {
-      x: (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2,
-      y: (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2,
-    }
-  }
 
   return (
     <Stage
@@ -266,17 +258,18 @@ const Editor = () => {
                         const rawLabelText =
                           transition.label && transition.label.length > 0 ? transition.label : ''
                         const labelText = rawLabelText.replace(/x/g, '-')
-                        const pts = transition.points
-                        // quadratic bezier midpoint at t=0.5
-                        const mid = getBezierPoint(pts, 0.5)
-                        // center pill on midpoint: half-width ≈ chars * (fontSize*0.6/2) + padding
-                        const halfW = labelText.length * 4 + 5
+                        const pos = getLabelPosition(
+                          transition.points,
+                          labelText,
+                          transition.fontSize,
+                          transition.fontStyle,
+                        )
 
                         return (
                           <Label
                             id={`tr_label${transition.id}`}
-                            x={mid.x - halfW}
-                            y={mid.y - 8}
+                            x={pos.x}
+                            y={pos.y}
                             onClick={() => {
                               if (!transitionsSelectable) return
                               handleTransitionClick(transition.id)

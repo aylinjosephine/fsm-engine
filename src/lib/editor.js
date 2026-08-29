@@ -401,12 +401,11 @@ function syncTransitionGeometry() {
     }
 
     if (transitionLabel) {
-      const mid = getBezierPoint(points, 0.5)
       const labelText = String(tr.label ?? '')
-      const halfW = labelText.length * 4 + 5
+      const pos = getLabelPosition(points, labelText, tr.fontSize, tr.fontStyle)
 
-      transitionLabel.x(mid.x - halfW)
-      transitionLabel.y(mid.y - 8)
+      transitionLabel.x(pos.x)
+      transitionLabel.y(pos.y)
     }
   })
 }
@@ -786,6 +785,50 @@ function getBezierPoint(points, t = 0.5) {
   return { x, y }
 }
 
+const LABEL_PADDING = 1
+
+// Measure text with the exact same metrics Konva uses for its Text shape
+// (font: `fontStyle normal fontSize px Arial`).
+function measureLabelText(text, fontSize, fontStyle) {
+  const font = `${fontStyle} normal ${fontSize}px Arial`
+  let width = 0
+
+  if (typeof document !== 'undefined') {
+    const ctx = document.createElement('canvas').getContext('2d')
+    if (ctx) {
+      ctx.font = font
+      width = ctx.measureText(String(text)).width
+    }
+  }
+
+  if (!width) width = String(text).length * fontSize * 0.6
+  return width
+}
+
+// Returns the top-left position for a transition label so that it is exactly
+// centered on the drawn edge path. Konva draws the transition as a tension
+// spline through the three anchor points (start, control, end), which always
+// passes through the middle anchor point. So the middle point lies exactly on
+// the visible edge for every direction, curvature and length.
+export function getLabelPosition(points, labelText, fontSize = 14, fontStyle = 'bold') {
+  fontSize = fontSize || 14
+  fontStyle = fontStyle || 'bold'
+
+  const mid =
+    Array.isArray(points) && points.length >= 4
+      ? { x: points[2], y: points[3] }
+      : { x: points?.[0] ?? 0, y: points?.[1] ?? 0 }
+
+  const displayText = String(labelText ?? '').replace(/x/g, '-')
+  const width = measureLabelText(displayText, fontSize, fontStyle) + LABEL_PADDING * 2
+  const height = fontSize + LABEL_PADDING * 2
+
+  return {
+    x: mid.x - width / 2,
+    y: mid.y - height / 2,
+  }
+}
+
 export { getBezierPoint }
 
 export function HandleAutoLayout() {
@@ -984,12 +1027,11 @@ export function HandleAutoLayout() {
 
         if (trLabel) {
           const text = String(tr.label ?? '')
-          const mid = getBezierPoint(points, 0.5)
-          const halfW = text.length * 4 + 5
+          const pos = getLabelPosition(points, text, tr.fontSize, tr.fontStyle)
 
           trLabel.position({
-            x: mid.x - halfW,
-            y: mid.y - 8,
+            x: pos.x,
+            y: pos.y,
           })
         }
       }

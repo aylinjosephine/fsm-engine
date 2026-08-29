@@ -1,4 +1,4 @@
-import { getBezierPoint, getTransitionPoints } from './editor'
+import { getLabelPosition, getTransitionPoints } from './editor'
 import { sendExportToMainState } from './export'
 import { addToHistory } from './history'
 import {
@@ -439,11 +439,10 @@ export function handleTransitionSave(labels) {
     if (displayText) displayText.text(labelText)
     if (labelShape && transition) {
       const points = transition.points
-      const mid = getBezierPoint(points, 0.5)
-      const halfW = labelText.length * 4 + 5
+      const pos = getLabelPosition(points, labelText, transition.fontSize, transition.fontStyle)
 
-      labelShape.x(mid.x - halfW)
-      labelShape.y(mid.y - 8)
+      labelShape.x(pos.x)
+      labelShape.y(pos.y)
     }
   })
 
