@@ -1,11 +1,8 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { sendExportToMainState } from '../lib/export'
 import {
   active_transition,
-  alert,
-  engine_mode,
   fsm_type,
   input_bit_count,
   output_bit_count,
@@ -19,14 +16,6 @@ const Popup = () => {
   const showPopup = useAtomValue(show_popup)
   const activeTransition = useAtomValue(active_transition)
   const transitionList = useAtomValue(transition_list)
-  const popups = [<ChooseTransitionLabelFreeStyle />, <ChooseTransitionLabelDFA />]
-  const EngineMode = useAtomValue(engine_mode)
-
-  const engine_mode_popup_map = {
-    'Free Style': 0,
-    DFA: 1,
-    NFA: 1,
-  }
 
   function handleBackdropClick() {
     if (!showPopup) return
@@ -48,9 +37,9 @@ const Popup = () => {
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080]"
+        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-3xl border border-border-bg shadow-[0px_0px_50px_0px_#000000]/70"
       >
-        {popups[engine_mode_popup_map[EngineMode.type]]}
+        <ChooseTransitionLabel />
       </div>
     </div>
   )
@@ -58,80 +47,8 @@ const Popup = () => {
 
 export default Popup
 
-/******* POPUP COMPONENTS *********/
-function ChooseTransitionLabelDFA() {
-  const LanguageAlphabets = useAtomValue(engine_mode)
-  const ActiveTransition = useAtomValue(active_transition)
-  const TransitionList = useAtomValue(transition_list)
-
-  const setShowPopup = store.set // jotai store aus ./stores
-  const [labels, setLabels] = useState([])
-
-  useEffect(() => {
-    const currentLabel = TransitionList[ActiveTransition]?.label
-    setLabels(currentLabel ? [currentLabel] : [])
-  }, [ActiveTransition, TransitionList])
-
-  function toggleAlphabet(val) {
-    if (labels.includes(val)) setLabels(labels.filter((x) => x !== val))
-    else setLabels([...labels, val])
-  }
-
-  function handleCancel() {
-    if (TransitionList[ActiveTransition]?.isDraft) {
-      removeTransitionById(ActiveTransition)
-    }
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-    setLabels([])
-  }
-
-  return (
-    <>
-      <p className="text-sm font-github text-center text-white mb-5 select-none">
-        Choose Input Alphabets for this transition
-      </p>
-      <div className="grid grid-cols-4 gap-5 justify-center items-center">
-        {LanguageAlphabets.alphabets.map((a) => (
-          <p
-            key={a}
-            onClick={() => toggleAlphabet(a)}
-            className={`font-github text-white text-balance ${
-              labels?.includes(a) ? 'bg-blue-500' : 'bg-secondary-bg'
-            } px-3 py-1 rounded-md border border-border-bg select-none cursor-pointer hover:scale-120 active:scale-100 transition-all ease-in-out`}
-          >
-            {a}
-          </p>
-        ))}
-      </div>
-      <div className="flex gap-3 mt-5">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <X size={16} color="#ffffff" />
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (labels.length > 0) {
-              handleTransitionSave(labels)
-              setLabels([])
-            }
-          }}
-          className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
-        >
-          <CircleCheck size={18} color="#ffffff" />
-          Done
-        </button>
-      </div>
-    </>
-  )
-}
-
-function ChooseTransitionLabelFreeStyle() {
+/******* POPUP COMPONENT *********/
+function ChooseTransitionLabel() {
   // Allow up to 5 input/output bits (same as the table)
   const MAX_IO_BITS = 5
   const ActiveTransition = useAtomValue(active_transition)
@@ -145,6 +62,7 @@ function ChooseTransitionLabelFreeStyle() {
   // One entry per bit ('' = empty, '0'/'1'/'-' = value). '-'-' is don't-care.
   const [inputBitsArr, setInputBitsArr] = useState([])
   const [outputBitsArr, setOutputBitsArr] = useState([])
+  const [invalidAttempt, setInvalidAttempt] = useState(false)
   const inputRefs = useRef([])
   const outputRefs = useRef([])
 
@@ -173,14 +91,60 @@ function ChooseTransitionLabelFreeStyle() {
     const [input = '', output = ''] = String(rawLabel).split('/')
     setInputBitsArr(toBits(input, inputBits))
     setOutputBitsArr(toBits(output, outputBits))
+    setInvalidAttempt(false)
     // Focus the first bit box once the boxes are rendered
     requestAnimationFrame(() => inputRefs.current[0]?.focus())
   }, [showPopup, ActiveTransition, TransitionList, inputBits, outputBits])
 
+  const hasOutput = FsmType !== 'moore'
+
+  function focusBox(kind, index) {
+    const refs = kind === 'input' ? inputRefs.current : outputRefs.current
+    refs[index]?.focus()
+  }
+
+  function getNextBox(kind, index) {
+    const count = kind === 'input' ? inputBits : outputBits
+    if (index < count - 1) return { kind, index: index + 1 }
+    if (kind === 'input' && hasOutput && outputBits >= 1) return { kind: 'output', index: 0 }
+    return null
+  }
+
+  function getPrevBox(kind, index) {
+    if (index > 0) return { kind, index: index - 1 }
+    if (kind === 'output' && inputBits >= 1) return { kind: 'input', index: inputBits - 1 }
+    return null
+  }
+
+  function moveNext(kind, index) {
+    const next = getNextBox(kind, index)
+    if (next) focusBox(next.kind, next.index)
+    return next
+  }
+
+  function movePrev(kind, index) {
+    const prev = getPrevBox(kind, index)
+    if (prev) focusBox(prev.kind, prev.index)
+    return prev
+  }
+
+  function moveDown(kind, index) {
+    if (kind === 'input' && hasOutput && outputBits >= 1) {
+      focusBox('output', Math.min(index, outputBits - 1))
+    }
+  }
+
+  function moveUp(kind, index) {
+    if (kind === 'output' && inputBits >= 1) {
+      focusBox('input', Math.min(index, inputBits - 1))
+    }
+  }
+
   function handleBitChange(kind, index, rawValue) {
     let ch = String(rawValue).slice(-1)
-    if (ch === 'x') ch = '-'
+    if (ch === 'x' || ch === 'X') ch = '-'
     if (!/^[01-]$/.test(ch)) return
+    setInvalidAttempt(false)
     const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
     setter((prev) => {
       const next = [...prev]
@@ -188,33 +152,36 @@ function ChooseTransitionLabelFreeStyle() {
       next[index] = ch
       return next
     })
-    // Auto-advance to the next bit box
-    const count = kind === 'input' ? inputBits : outputBits
-    if (index < count - 1) {
-      const refs = kind === 'input' ? inputRefs.current : outputRefs.current
-      requestAnimationFrame(() => refs[index + 1]?.focus())
+    // Auto-advance to the next bit box (input -> output rows)
+    const next = getNextBox(kind, index)
+    if (next) {
+      requestAnimationFrame(() => focusBox(next.kind, next.index))
     }
   }
 
   function handleBackspace(kind, index) {
     const arr = kind === 'input' ? inputBitsArr : outputBitsArr
     const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
-    const refs = kind === 'input' ? inputRefs.current : outputRefs.current
     if (arr[index]) {
       setter((prev) => {
         const next = [...prev]
         next[index] = ''
         return next
       })
-    } else if (index > 0) {
-      // Clear the previous bit and jump back
-      setter((prev) => {
-        const next = [...prev]
-        next[index - 1] = ''
-        return next
-      })
-      requestAnimationFrame(() => refs[index - 1]?.focus())
+      return
     }
+    // If the current box is already empty, move to the previous box and clear it
+    const prev = getPrevBox(kind, index)
+    if (!prev) return
+    const prevArr = prev.kind === 'input' ? inputBitsArr : outputBitsArr
+    if (prevArr[prev.index] === undefined) return
+    const prevSetter = prev.kind === 'input' ? setInputBitsArr : setOutputBitsArr
+    prevSetter((p) => {
+      const n = [...p]
+      n[prev.index] = ''
+      return n
+    })
+    requestAnimationFrame(() => focusBox(prev.kind, prev.index))
   }
 
   function handleKeyDown(kind, index, event) {
@@ -227,19 +194,26 @@ function ChooseTransitionLabelFreeStyle() {
     } else if (event.key === 'Backspace') {
       event.preventDefault()
       handleBackspace(kind, index)
-    } else if (event.key === 'ArrowLeft' && index > 0) {
+    } else if (event.key === 'Tab') {
       event.preventDefault()
-      const refs = kind === 'input' ? inputRefs.current : outputRefs.current
-      refs[index - 1]?.focus()
+      if (event.shiftKey) movePrev(kind, index)
+      else moveNext(kind, index)
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      movePrev(kind, index)
     } else if (event.key === 'ArrowRight') {
-      const count = kind === 'input' ? inputBits : outputBits
-      if (index < count - 1) {
-        event.preventDefault()
-        const refs = kind === 'input' ? inputRefs.current : outputRefs.current
-        refs[index + 1]?.focus()
-      }
+      event.preventDefault()
+      moveNext(kind, index)
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveDown(kind, index)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveUp(kind, index)
+    } else if (event.key.length === 1 && !/^[01x]$/i.test(event.key)) {
+      // Only 0, 1 or x (don't-care)
+      event.preventDefault()
     }
-    // Tab / Shift+Tab keep the browser default (Shift+Tab jumps back a box)
   }
 
   function handleCancel() {
@@ -257,22 +231,13 @@ function ChooseTransitionLabelFreeStyle() {
     const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
 
     if (!inputOk || !outputOk) {
-      const required = `Enter exactly ${inputBits} input bit${inputBits === 1 ? '' : 's'}${
-        FsmType !== 'moore'
-          ? ` and ${outputBits} output bit${outputBits === 1 ? '' : 's'} (0/1/x)`
-          : ' (0/1/x)'
-      }`
-      store.set(alert, required)
-      setTimeout(() => store.set(alert, ''), 3000)
-      if (TransitionList[ActiveTransition]?.isDraft) {
-        removeTransitionById(ActiveTransition)
-        sendExportToMainState()
-      }
-      store.set(show_popup, false)
-      store.set(active_transition, null)
+      // Keep the popup open so the user can correct the input. Empty fields
+      // stay highlighted (red border) until every bit box is filled.
+      setInvalidAttempt(true)
       return
     }
 
+    setInvalidAttempt(false)
     // Persist using 'x' as internal don't-care, convert '-' back to 'x'
     const persistedInput = input.replace(/-/g, 'x')
     const persistedOutput = output.replace(/-/g, 'x')
@@ -284,9 +249,9 @@ function ChooseTransitionLabelFreeStyle() {
   function renderBitRow(kind, label, count, arr, refs) {
     const total = Math.min(count, MAX_IO_BITS)
     return (
-      <span className="w-full mb-2">
-        <p className="font-github text-white text-xs pb-1">
-          {label} ({total} bit{total === 1 ? '' : 's'}):
+      <span className="w-full mb-2.5">
+        <p className="font-github text-white text-xs pb-1.5 font-medium">
+          {label} · {total} bit{total === 1 ? '' : 's'}
         </p>
         <div className="flex gap-1.5">
           {Array.from({ length: total }, (_, i) => (
@@ -298,7 +263,12 @@ function ChooseTransitionLabelFreeStyle() {
               type="text"
               maxLength={1}
               value={arr[i] ?? ''}
-              className="w-6 h-8 text-center bg-surface-1 border border-surface-3 rounded outline-none font-mono text-sm text-white hover:border-white/40 focus:border-blue-500 transition-colors"
+              aria-label={`${label} bit ${i + 1}`}
+              className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
+                arr[i] === '-' ? 'text-amber-300' : 'text-white'
+              } ${
+                invalidAttempt && !(arr[i] ?? '') ? 'border-red-500' : 'border-border-bg'
+              } hover:border-white/40 focus:border-blue-500`}
               onChange={(e) => handleBitChange(kind, i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(kind, i, e)}
             />
@@ -313,7 +283,10 @@ function ChooseTransitionLabelFreeStyle() {
       {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
       {FsmType !== 'moore' &&
         renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
-      <div className="flex gap-3 mt-5">
+      <p className="text-[11px] text-white/60 font-github -mt-1 mb-2 select-none">
+        0/1/x · Tab/←/→/↑/↓ navigieren · Enter = übernehmen
+      </p>
+      <div className="flex gap-3 mt-1">
         <button
           type="button"
           onClick={handleCancel}
