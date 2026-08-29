@@ -1,8 +1,8 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @font-face {
-  font-family: "github";
-  src: url("/fonts/github_font.ttf");
+  font-family: 'github';
+  src: url('/fonts/github_font.ttf');
 }
 @theme {
   --font-github: github;

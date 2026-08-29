@@ -1,2 +1,2 @@
-const Main: unknown;
-export default Main;
+const Main: unknown
+export default Main
