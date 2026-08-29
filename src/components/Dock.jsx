@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import {
   Cable,
@@ -35,6 +36,14 @@ const Dock = () => {
   const [_transitionPairs, setTransitionPairs] = useAtom(transition_pairs)
   const setConfirmDialog = useSetAtom(confirm_dialog_atom)
   const [showHidden, setShowHidden] = useAtom(show_hidden_transitions)
+
+  // Tell parent about the read-only view so it can show an info badge
+  useEffect(() => {
+    window.parent.postMessage(
+      { action: 'show-hidden-changed', show: showHidden },
+      window.location.origin,
+    )
+  }, [showHidden])
   // Jotai Atoms
 
   const dockItems = [
@@ -99,7 +108,8 @@ const Dock = () => {
               const disabled = showHidden && !showButton
               const active = showButton
                 ? showHidden
-                : isModeButton(item.name) &&
+                : !disabled &&
+                  isModeButton(item.name) &&
                   ((item.name === 'Move' && editorState === null) || item.name === editorState)
 
               return (
