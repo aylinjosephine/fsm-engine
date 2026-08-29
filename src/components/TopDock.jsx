@@ -1,23 +1,13 @@
-import {
-  CaseSensitive,
-  ChevronDown,
-  FolderOpen,
-  Settings,
-  Shapes,
-  Sparkles,
-  Table,
-} from 'lucide-react'
+import { ChevronDown, FolderOpen, Sparkles } from 'lucide-react'
 import { useState } from 'react'
-import { engine_mode, editor_state, show_transition_table } from '../lib/stores'
-import { useAtomValue, useAtom } from 'jotai'
+import { editor_state } from '../lib/stores'
+import { useAtom } from 'jotai'
 import { HandleAutoLayout } from '../lib/editor'
-import { HandleLoadFSM, validateDFA } from '../lib/special_functions'
+import { HandleLoadFSM } from '../lib/special_functions'
 
 const TopDock = () => {
   const [isVisible, setIsVisible] = useState(false)
-  const EngineMode = useAtomValue(engine_mode)
   const [_EditorState, setEditorState] = useAtom(editor_state)
-  const [showTransitionTable, setShowTransitionTable] = useAtom(show_transition_table)
 
   // Constants
   const iconFillColor = '#ffffff'
@@ -33,15 +23,6 @@ const TopDock = () => {
         setIsVisible(false)
       },
     },
-    {
-      name: 'Controls',
-      icon: <Settings stroke={iconFillColor} size={iconSize} />,
-      condition: true,
-      onclick: () => {
-        setEditorState('Controls')
-        setIsVisible(false)
-      },
-    },
     // reuse!
     {
       name: 'Auto Layout',
@@ -50,55 +31,6 @@ const TopDock = () => {
       onclick: () => {
         HandleAutoLayout()
         setIsVisible(false)
-      },
-    },
-    {
-      name: 'Transition Table',
-      icon: <Table stroke={iconFillColor} size={iconSize} />,
-      condition: ['NFA', 'DFA'].includes(EngineMode.type),
-      onclick: () => {
-        setShowTransitionTable((val) => !val)
-        setIsVisible(false)
-      },
-    },
-    {
-      name: 'String Validator',
-      icon: <CaseSensitive stroke={iconFillColor} size={iconSize} />,
-      condition: ['NFA', 'DFA'].includes(EngineMode.type),
-      onclick: () => {
-        alert("Feature Not Available yet. We're Working on it. Check back soon!")
-      },
-    },
-    {
-      name: 'NFA from RE',
-      icon: <Shapes stroke={iconFillColor} size={iconSize} />,
-      condition: EngineMode.type === 'NFA',
-      onclick: () => {
-        alert("Feature Not Available yet. We're Working on it. Check back soon!")
-      },
-    },
-    {
-      name: 'DFA from RE',
-      icon: <Shapes stroke={iconFillColor} size={iconSize} />,
-      condition: EngineMode.type === 'DFA',
-      onclick: () => {
-        alert("Feature Not Available yet. We're Working on it. Check back soon!")
-      },
-    },
-    {
-      name: 'Convert to DFA',
-      icon: <Shapes stroke={iconFillColor} size={iconSize} />,
-      condition: EngineMode.type === 'NFA',
-      onclick: () => {
-        alert("Feature Not Available yet. We're Working on it. Check back soon!")
-      },
-    },
-    {
-      name: 'Minimize DFA',
-      icon: <Shapes stroke={iconFillColor} size={iconSize} />,
-      condition: EngineMode.type === 'DFA',
-      onclick: () => {
-        alert("Feature Not Available yet. We're Working on it. Check back soon!")
       },
     },
   ]
@@ -129,7 +61,7 @@ const TopDock = () => {
           onClick={() => setIsVisible(!isVisible)}
           className={`flex justify-center items-center gap-1 absolute -bottom-10 font-github bg-primary-bg text-white text-sm font-bold px-3 py-2 border border-border-bg rounded-lg cursor-pointer`}
         >
-          {EngineMode.type}
+          FSM
           <ChevronDown
             className={`${isVisible && 'rotate-180'} transition-all ease-in-out duration-500`}
             size={24}

@@ -1,12 +1,10 @@
 import { getBezierPoint, getTransitionPoints } from './editor'
 import { sendExportToMainState } from './export'
 import { addToHistory } from './history'
-import { getAlphabetsFor } from './special_functions'
 import {
   active_transition,
   alert,
   editor_state,
-  engine_mode,
   fsm_type,
   node_list,
   show_popup,
@@ -227,7 +225,6 @@ export function handleTransitionClick(id) {
 
 // Handle Save on Changing a Transition's Label
 export function handleTransitionSave(labels) {
-  const automata_type = store.get(engine_mode).type
   const moore = isMooreMode()
   const active_tr = store.get(active_transition)
   const activeTransition = store.get(transition_list)[active_tr]
@@ -307,35 +304,6 @@ export function handleTransitionSave(labels) {
     }
     setTimeout(() => store.set(alert, ''), 3500)
     return
-  }
-
-  if (automata_type === 'DFA') {
-    // If Automata is a DFA, don't allow multiple
-    // transitions on the same alphabet from a state
-    const consumed_letters = getAlphabetsFor(src_node)
-
-    let err_msg = null
-
-    const new_letters = labels.filter((alph) => !consumed_letters.includes(alph))
-
-    if (new_letters.length == 0) {
-      err_msg = `State '${
-        store.get(node_list)[src_node].name
-      }' already has a transition on the alphabets you picked!`
-    }
-
-    if (consumed_letters.filter(Boolean).length === store.get(engine_mode).alphabets.length) {
-      err_msg = `State '${
-        store.get(node_list)[src_node].name
-      }' has already consumed all letters in language`
-    }
-
-    if (err_msg) {
-      store.set(show_popup, () => false)
-      store.set(alert, () => err_msg) // Display the error
-      setTimeout(() => store.set(alert, () => ''), 3500)
-      return // dont' add the transition
-    }
   }
 
   // Update the New Labels in store

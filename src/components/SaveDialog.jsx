@@ -1,14 +1,7 @@
 import { useAtom, useAtomValue } from 'jotai'
 import { HardDriveDownload, X } from 'lucide-react'
 import { useState } from 'react'
-import {
-  deleted_nodes,
-  editor_state,
-  engine_mode,
-  layer_ref,
-  node_list,
-  transition_list,
-} from '../lib/stores'
+import { deleted_nodes, editor_state, layer_ref, node_list, transition_list } from '../lib/stores'
 
 const SaveDialog = () => {
   const [EditorState, setEditorState] = useAtom(editor_state)
@@ -23,7 +16,6 @@ const SaveDialog = () => {
   const NodeList = useAtomValue(node_list)
   const TransitionList = useAtomValue(transition_list)
   const DeletedNodes = useAtomValue(deleted_nodes)
-  const EngineMode = useAtomValue(engine_mode)
 
   return (
     <div
@@ -100,7 +92,6 @@ const SaveDialog = () => {
                 nodes: NodeList,
                 transitions: TransitionList,
                 deleted_nodes: DeletedNodes,
-                engine_mode: EngineMode,
               }
 
               const jsonString = JSON.stringify(data, null, 2) // pretty formatted

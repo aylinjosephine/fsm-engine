@@ -1,7 +1,6 @@
 import { useAtomValue } from 'jotai'
 import { useEffect } from 'react'
 import Alert from './components/Alert'
-import Controls from './components/Controls'
 import Dock from './components/Dock'
 import Editor from './components/Editor'
 import Guide from './components/Guide'
@@ -9,7 +8,6 @@ import Popup from './components/Popup'
 import SaveDialog from './components/SaveDialog'
 import Settings from './components/Settings'
 import TopDock from './components/TopDock'
-import TransitionTable from './components/TransitionTable'
 import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
 import { node_list, transition_list, show_popup } from './lib/stores'
@@ -76,15 +74,11 @@ export function App() {
 
       <Settings />
 
-      <Controls />
-
       <Alert />
 
       <Popup />
 
       <SaveDialog />
-
-      <TransitionTable />
 
       <ConfirmDialog />
     </div>

@@ -69,21 +69,12 @@ export const output_bit_count = atom(1)
 // Alert Message
 export const alert = atom('')
 
-// Store to keep track of current FSM Mode
-export const engine_mode = atom({
-  type: 'Free Style',
-  alphabets: [],
-})
-
 // Show Popup
 export const show_popup = atom(false)
 export const active_transition = atom(null)
 
 // Store to cache contributors
 export const contributors_data = atom(null)
-
-// Store to toggle Transition Table visibility
-export const show_transition_table = atom(false)
 
 // Store to disable keyboard shortcuts while dock menus are open
 export const shortcut_context_locked = atom(false)

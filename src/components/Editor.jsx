@@ -31,7 +31,7 @@ const Editor = () => {
   const fsmType = useAtomValue(fsm_type)
   const [hoveredStateId, setHoveredStateId] = useState(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
-  const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Controls', 'Guide'])
+  const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Guide'])
   const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
   const transitionsSelectable = editorState !== 'Connect'
 

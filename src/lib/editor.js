@@ -14,7 +14,6 @@ import {
   current_selected,
   deleted_nodes,
   editor_state,
-  engine_mode,
   fsm_type,
   initial_state,
   node_list,
@@ -324,9 +323,14 @@ export function HandleStateClick(e, id) {
     return
   }
 
-  // If not in special modes, select the node
-  if (!['Add', 'Remove', 'Connect', 'Label'].includes(store.get(editor_state))) {
-    store.set(current_selected, (_prev) => id)
+  // Open the State Settings when clicking a state in Move (default) or Add mode
+  if (
+    store.get(editor_state) == null ||
+    store.get(editor_state) === 'Move' ||
+    store.get(editor_state) === 'Add'
+  ) {
+    store.set(current_selected, id)
+    store.set(editor_state, 'settings')
   }
 }
 
@@ -419,7 +423,7 @@ export function HandleStateDrag(e, id) {
 export function handleShortCuts(key) {
   const currentEditorState = store.get(editor_state)
 
-  if (['Controls', 'Guide', 'Save FSM', 'settings'].includes(currentEditorState)) {
+  if (['Guide', 'Save FSM', 'settings'].includes(currentEditorState)) {
     return
   }
 

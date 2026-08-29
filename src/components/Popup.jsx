@@ -251,7 +251,7 @@ function ChooseTransitionLabel() {
     return (
       <span className="w-full mb-2.5">
         <p className="font-github text-white text-xs pb-1.5 font-medium">
-          {label} · {total} bit{total === 1 ? '' : 's'}
+          {label}: {total} bit{total === 1 ? '' : 's'}
         </p>
         <div className="flex gap-1.5">
           {Array.from({ length: total }, (_, i) => (
@@ -284,7 +284,6 @@ function ChooseTransitionLabel() {
       {FsmType !== 'moore' &&
         renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
       <p className="text-[11px] text-white/60 font-github -mt-1 mb-2 select-none">
-        0/1/x · Tab/←/→/↑/↓ navigieren · Enter = übernehmen
       </p>
       <div className="flex gap-3 mt-1">
         <button

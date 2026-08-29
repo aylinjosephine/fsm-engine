@@ -11,7 +11,7 @@ import {
   Edit,
   Sparkles,
 } from 'lucide-react'
-import { editor_state, transition_pairs, confirm_dialog_atom, engine_mode } from '../lib/stores'
+import { editor_state, transition_pairs, confirm_dialog_atom } from '../lib/stores'
 import { newProject, getTransitionPoints, HandleAutoLayout } from '../lib/editor'
 import { undo, redo } from '../lib/history'
 import { useSetAtom } from 'jotai'
@@ -27,7 +27,6 @@ const Dock = () => {
   const [editorState, setEditorState] = useAtom(editor_state)
   const [_transitionPairs, setTransitionPairs] = useAtom(transition_pairs)
   const setConfirmDialog = useSetAtom(confirm_dialog_atom)
-  const [engineMode, setEngineMode] = useAtom(engine_mode)
   // Jotai Atoms
 
   const dockItems = [

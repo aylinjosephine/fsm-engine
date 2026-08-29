@@ -20,7 +20,7 @@ const Settings = () => {
 
   // State Hooks for input fields
   const [stateName, setStateName] = useState('')
-  const [stateMooreOutput, setStateMooreOutput] = useState('')
+  const [mooreBits, setMooreBits] = useState([])
   const [stateColor, setStateColor] = useState('')
   const [stateType, setStateType] = useState({
     initial: false,
@@ -29,6 +29,7 @@ const Settings = () => {
   })
   // State Hooks for input fields
   const nameInputRef = useRef(null)
+  const mooreRefs = useRef([])
 
   useEffect(() => {
     if (editorState === 'settings') {
@@ -44,7 +45,7 @@ const Settings = () => {
     const mooreOutput = nodeList[currentSelected].moore_output ?? ''
 
     setStateName(name)
-    setStateMooreOutput(mooreOutput)
+    setMooreBits(toBits(mooreOutput, outputBitCount))
     setStateColor(color)
     setStateType(type)
   }
@@ -91,6 +92,76 @@ const Settings = () => {
       .replace(/[^01x]/g, '')
       .slice(0, limit)
     return normalized.length > 0 ? normalized : 'x'
+  }
+
+  // Split a stored Moore output string (0/1/x) into per-bit display chars ('-' for x)
+  function toBits(value, length) {
+    const cleaned = String(value ?? '')
+      .replace(/x/g, '-')
+      .replace(/[^01-]/g, '')
+      .slice(0, Math.min(length, MAX_IO_BITS))
+    const arr = cleaned.split('')
+    while (arr.length < Math.min(length, MAX_IO_BITS)) arr.push('')
+    return arr
+  }
+
+  function handleMooreBitChange(index, rawValue) {
+    let ch = String(rawValue).slice(-1)
+    if (ch === 'x' || ch === 'X') ch = '-'
+    if (!/^[01-]$/.test(ch)) return
+    setMooreBits((prev) => {
+      const next = [...prev]
+      while (next.length <= index) next.push('')
+      next[index] = ch
+      return next
+    })
+    if (index < outputBitCount - 1) {
+      requestAnimationFrame(() => mooreRefs.current[index + 1]?.focus())
+    }
+  }
+
+  function handleMooreKeyDown(index, event) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      handleSave()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      handleCancel()
+    } else if (event.key === 'Backspace') {
+      event.preventDefault()
+      if (mooreBits[index]) {
+        setMooreBits((prev) => {
+          const next = [...prev]
+          next[index] = ''
+          return next
+        })
+      } else if (index > 0) {
+        setMooreBits((prev) => {
+          const next = [...prev]
+          next[index - 1] = ''
+          return next
+        })
+        requestAnimationFrame(() => mooreRefs.current[index - 1]?.focus())
+      }
+    } else if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault()
+      mooreRefs.current[index - 1]?.focus()
+    } else if (event.key === 'ArrowRight' && index < outputBitCount - 1) {
+      event.preventDefault()
+      mooreRefs.current[index + 1]?.focus()
+    } else if (event.key.length === 1 && !/^[01x]$/i.test(event.key)) {
+      event.preventDefault()
+    }
+  }
+
+  function handleSave() {
+    const mooreOutputValue = mooreBits.join('').replace(/-/g, 'x')
+    HandleSaveSettings(
+      stateName,
+      stateColor,
+      stateType,
+      fsmType === 'moore' ? normalizeOutputBits(mooreOutputValue) : '',
+    )
   }
 
   // Validate the Statetype Change
@@ -177,15 +248,28 @@ const Settings = () => {
 
           {fsmType === 'moore' && (
             <span>
-              <p className="font-github text-white text-base pb-2 font-semibold">State Output</p>
-              <input
-                value={stateMooreOutput}
-                className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-                type="text"
-                pattern="[01x]*"
-                maxLength={Math.min(outputBitCount, MAX_IO_BITS)}
-                onChange={(e) => setStateMooreOutput(e.target.value)}
-              />
+              <p className="font-github text-white text-xs pb-1.5 font-medium">
+                State Output · {outputBitCount} bit{outputBitCount === 1 ? '' : 's'}
+              </p>
+              <div className="flex gap-1.5">
+                {Array.from({ length: Math.min(outputBitCount, MAX_IO_BITS) }, (_, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      mooreRefs.current[i] = el
+                    }}
+                    type="text"
+                    maxLength={1}
+                    value={mooreBits[i] ?? ''}
+                    aria-label={`state output bit ${i + 1}`}
+                    className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
+                      mooreBits[i] === '-' ? 'text-amber-300' : 'text-white'
+                    } border-border-bg hover:border-white/40 focus:border-blue-500`}
+                    onChange={(e) => handleMooreBitChange(i, e.target.value)}
+                    onKeyDown={(e) => handleMooreKeyDown(i, e)}
+                  />
+                ))}
+              </div>
             </span>
           )}
         </span>
@@ -200,14 +284,7 @@ const Settings = () => {
           </span>
 
           <span
-            onClick={() =>
-              HandleSaveSettings(
-                stateName,
-                stateColor,
-                stateType,
-                fsmType === 'moore' ? normalizeOutputBits(stateMooreOutput) : '',
-              )
-            }
+            onClick={handleSave}
             className="flex items-center justify-center gap-2 bg-blue-500 w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
           >
             <CircleCheck color="#ffffff" size={18} />
