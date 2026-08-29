@@ -19,6 +19,7 @@ import {
   initial_state,
   node_list,
   shortcut_context_locked,
+  show_hidden_transitions,
   show_popup,
   stage_ref,
   store,
@@ -31,6 +32,11 @@ const MAX_FSM_STATES = 16
 function notifyStateLimit() {
   store.set(alert, `The maximum of ${MAX_FSM_STATES} states has been reached in the editor.`)
   setTimeout(() => store.set(alert, ''), 2500)
+}
+
+// While showing hidden don't-care edges, the editor is read-only
+function isHidden() {
+  return store.get(show_hidden_transitions)
 }
 
 function getNodeBitCount(nodes) {
@@ -133,6 +139,7 @@ function expandTransitionForEditor(transition, nodes, nodeBitCount) {
 
 // Handler function for dropping the initial arrow handle onto a state
 export function handleInitialArrowDrop(dropX, dropY) {
+  if (isHidden()) return
   const nodes = store.get(node_list)
   let closest = null
   let minDist = Infinity
@@ -176,6 +183,7 @@ export function handleInitialArrowDrop(dropX, dropY) {
 
 // Handler function that is called when the editor is clicked
 export function HandleEditorClick(e) {
+  if (isHidden()) return
   const group = e.target.getStage().findOne('Layer')
   if (!group) return
 
@@ -225,6 +233,7 @@ export function HandleEditorClick(e) {
 
 // Handler function to update Position of nodes when they are dragged around
 export function HandleDragEnd(e, id) {
+  if (isHidden()) return
   const draggedState = store.get(stage_ref).findOne(`#state_${id}`) // Get the Circle
   const position = [draggedState.x(), draggedState.y()] // Get it's positions
   // Update the State's Position in store
@@ -238,6 +247,7 @@ export function HandleDragEnd(e, id) {
 
 // Handler Function for when a State is clicked
 export function HandleStateClick(e, id) {
+  if (isHidden()) return
   e.cancelBubble = true
   const clickType = e.evt.button === 0 ? 'left' : e.evt.button === 2 ? 'right' : 'middle'
 
@@ -403,6 +413,7 @@ function syncTransitionGeometry() {
 
 // Function to update the positions of transition arrows when a node is dragged around
 export function HandleStateDrag(e, id) {
+  if (isHidden()) return
   const state = store.get(node_list)[id] // Get the state
 
   const currentTransitions = store.get(transition_list) ?? []
@@ -422,6 +433,7 @@ export function HandleStateDrag(e, id) {
 }
 
 export function handleShortCuts(key) {
+  if (isHidden()) return
   const currentEditorState = store.get(editor_state)
 
   if (['Guide', 'Save FSM', 'settings'].includes(currentEditorState)) {
@@ -777,6 +789,7 @@ function getBezierPoint(points, t = 0.5) {
 export { getBezierPoint }
 
 export function HandleAutoLayout() {
+  if (isHidden()) return
   const nodes = store.get(node_list) ?? []
   const transitions = store.get(transition_list) ?? []
   const stage = store.get(stage_ref)

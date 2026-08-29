@@ -17,6 +17,7 @@ import {
   transition_list,
   current_selected,
   fsm_type,
+  show_hidden_transitions,
 } from '../lib/stores'
 import { handleTransitionClick } from '../lib/transitions'
 
@@ -29,11 +30,12 @@ const Editor = () => {
   const [_layerRef, setLayerRef] = useAtom(layer_ref)
   const currentSelected = useAtomValue(current_selected)
   const fsmType = useAtomValue(fsm_type)
+  const showHidden = useAtomValue(show_hidden_transitions)
   const [hoveredStateId, setHoveredStateId] = useState(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
   const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Guide'])
-  const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
-  const transitionsSelectable = editorState !== 'Connect'
+  const allowObjectHoverHighlight = !showHidden && !hoverDisabledModes.has(editorState)
+  const transitionsSelectable = !showHidden && editorState !== 'Connect'
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -83,7 +85,7 @@ const Editor = () => {
                     id={`state_${circle.id}`}
                     x={circle.x}
                     y={circle.y}
-                    draggable={!['Add', 'Remove'].includes(editorState)}
+                    draggable={!showHidden && !['Add', 'Remove'].includes(editorState)}
                     onDragEnd={(e) => {
                       HandleDragEnd(e, circle.id)
                       HandleStateDrag(e, circle.id)
@@ -204,7 +206,7 @@ const Editor = () => {
                       fill={'#6b7280'}
                       stroke={'#ffffff50'}
                       strokeWidth={1}
-                      draggable
+                      draggable={!showHidden}
                       onDragEnd={(e) => {
                         const pos = e.target.position()
                         handleInitialArrowDrop(pos.x, pos.y)
@@ -222,10 +224,12 @@ const Editor = () => {
               transitionList.map(
                 (transition) =>
                   transition &&
-                  !transition.hiddenDontCare && (
+                  (!transition.hiddenDontCare || showHidden) && (
                     <Group
                       key={`${transition.id}-${transition.renderNonce ?? 0}`}
                       id={`tr_${transition.id}`}
+                      opacity={transition.hiddenDontCare ? 0.3 : 1}
+                      listening={!transition.hiddenDontCare}
                     >
                       {/* Transition arrow object */}
                       <Arrow
