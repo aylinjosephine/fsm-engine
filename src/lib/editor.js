@@ -4,6 +4,10 @@
  * This file has all the functions that are used in the Editor Component
  */
 
+import dagre from 'dagre'
+import Konva from 'konva'
+import { sendExportToMainState } from './export'
+import { addToHistory, clearHistory, redo, undo } from './history'
 import {
   active_transition,
   alert,
@@ -14,17 +18,13 @@ import {
   fsm_type,
   initial_state,
   node_list,
+  shortcut_context_locked,
   show_popup,
   stage_ref,
   store,
   transition_list,
   transition_pairs,
-  shortcut_context_locked,
 } from './stores'
-import { addToHistory, undo, redo, clearHistory } from './history'
-import { sendExportToMainState } from './export'
-import dagre from 'dagre'
-import Konva from 'konva'
 
 const MAX_FSM_STATES = 12
 

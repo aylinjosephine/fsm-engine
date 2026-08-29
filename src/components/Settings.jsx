@@ -1,15 +1,22 @@
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { Activity, CircleCheck, CircleCheckBig, CirclePower, CircleX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { HandleSaveSettings } from '../lib/settings'
+import {
+  current_selected,
+  editor_state,
+  fsm_type,
+  node_list,
+  output_bit_count,
+} from '../lib/stores'
 import { MAX_IO_BITS } from '../lib/transitions'
-import { current_selected, editor_state, fsm_type, node_list } from '../lib/stores'
 
 const Settings = () => {
   const [editorState, setEditorState] = useAtom(editor_state)
   const [currentSelected, _setCurrentSelected] = useAtom(current_selected)
   const [nodeList, _setNodeList] = useAtom(node_list)
   const [fsmType] = useAtom(fsm_type)
+  const outputBitCount = useAtomValue(output_bit_count)
 
   // State Hooks for input fields
   const [stateName, setStateName] = useState('')
@@ -77,10 +84,12 @@ const Settings = () => {
   }
 
   function normalizeOutputBits(value) {
+    // Limit to the FSM's fixed output bit count (capped at the global max).
+    const limit = Math.min(outputBitCount, MAX_IO_BITS)
     const normalized = String(value ?? '')
       .replace(/-/g, 'x')
       .replace(/[^01x]/g, '')
-      .slice(0, MAX_IO_BITS)
+      .slice(0, limit)
     return normalized.length > 0 ? normalized : 'x'
   }
 
@@ -174,7 +183,7 @@ const Settings = () => {
                 className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
                 type="text"
                 pattern="[01x]*"
-                maxLength={MAX_IO_BITS}
+                maxLength={Math.min(outputBitCount, MAX_IO_BITS)}
                 onChange={(e) => setStateMooreOutput(e.target.value)}
               />
             </span>

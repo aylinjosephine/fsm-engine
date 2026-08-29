@@ -1,21 +1,20 @@
+import { getBezierPoint, getTransitionPoints } from './editor'
+import { sendExportToMainState } from './export'
+import { addToHistory } from './history'
+import { getAlphabetsFor } from './special_functions'
 import {
   active_transition,
+  alert,
   editor_state,
+  engine_mode,
+  fsm_type,
   node_list,
   show_popup,
   stage_ref,
   store,
   transition_list,
-  engine_mode,
-  alert,
-  fsm_type,
 } from './stores'
-import { addToHistory } from './history'
-import { getAlphabetsFor } from './special_functions'
-import { sendExportToMainState } from './export'
-import { getTransitionPoints, getBezierPoint } from './editor'
 
-const MIN_IO_BITS = 1
 // Allow up to 5 input/output bits (same as the table)
 export const MAX_IO_BITS = 5
 
@@ -158,41 +157,6 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
   const out = outRaw.padEnd(maxOutput, 'x').slice(0, maxOutput)
 
   return `${inp}/${out}`
-}
-
-function clampBitsCount(value, floor = MIN_IO_BITS) {
-  // Preserve any existing data width beyond MAX_IO_BITS (e.g. from imported
-  // files) so it round-trips without truncation, while capping NEW data at
-  // MAX_IO_BITS.
-  const cap = Math.max(MAX_IO_BITS, floor)
-  return Math.max(MIN_IO_BITS, Math.min(cap, Number(value) || MIN_IO_BITS))
-}
-
-export function setTransitionBitLengths(inputBits, outputBits) {
-  const { maxInput, maxOutput } = getEditorBitLengths()
-  const targetInput = clampBitsCount(inputBits, maxInput)
-  const targetOutput = clampBitsCount(outputBits, maxOutput)
-
-  if (targetInput === maxInput && targetOutput === maxOutput) return false
-
-  addToHistory()
-  store.set(transition_list, (old) =>
-    old.map((t) => {
-      if (!t) return t
-      return {
-        ...t,
-        label: padLabelToBitLengths(String(t.label ?? ''), targetInput, targetOutput),
-      }
-    }),
-  )
-
-  sendExportToMainState()
-  return true
-}
-
-export function changeTransitionBitLengths(inputDelta = 0, outputDelta = 0) {
-  const { maxInput, maxOutput } = getEditorBitLengths()
-  return setTransitionBitLengths(maxInput + inputDelta, maxOutput + outputDelta)
 }
 
 function isValidBits(value) {

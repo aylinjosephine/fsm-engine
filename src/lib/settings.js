@@ -2,18 +2,28 @@
  * This file has all the functions that are used in the Settings Component
  */
 
-import { current_selected, editor_state, initial_state, fsm_type, node_list, store } from './stores'
-import { addToHistory } from './history'
 import { sendExportToMainState } from './export'
-import { MAX_IO_BITS } from './transitions'
+import { addToHistory } from './history'
+import {
+  current_selected,
+  editor_state,
+  fsm_type,
+  initial_state,
+  node_list,
+  output_bit_count,
+  store,
+} from './stores'
 
 function sanitizeMooreOutput(value) {
   const normalized = String(value ?? '')
     .trim()
     .replace(/-/g, 'x')
     .replace(/[^01x]/gi, '')
-    .slice(0, MAX_IO_BITS)
-  return normalized.length > 0 ? normalized : 'x'
+  // Pad to the FSM's fixed output bit count so the stored value is exactly
+  // as wide as configured.
+  const outputBits = store.get(output_bit_count) || 1
+  const padded = normalized.padEnd(outputBits, 'x').slice(0, outputBits)
+  return padded.length > 0 ? padded : 'x'
 }
 
 export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = '') {

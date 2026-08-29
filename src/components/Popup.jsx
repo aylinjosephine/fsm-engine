@@ -1,17 +1,19 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { sendExportToMainState } from '../lib/export'
 import {
   active_transition,
+  alert,
   engine_mode,
   fsm_type,
-  node_list,
+  input_bit_count,
+  output_bit_count,
   show_popup,
-  transition_list,
   store,
+  transition_list,
 } from '../lib/stores'
 import { handleTransitionSave, removeTransitionById } from '../lib/transitions'
-import { sendExportToMainState } from '../lib/export'
 
 const Popup = () => {
   const showPopup = useAtomValue(show_popup)
@@ -132,83 +134,113 @@ function ChooseTransitionLabelDFA() {
 function ChooseTransitionLabelFreeStyle() {
   // Allow up to 5 input/output bits (same as the table)
   const MAX_IO_BITS = 5
-  const MIN_IO_BITS = 1
   const ActiveTransition = useAtomValue(active_transition)
   const TransitionList = useAtomValue(transition_list)
   const FsmType = useAtomValue(fsm_type)
   const showPopup = useAtomValue(show_popup)
-  const [inputValue, setInputValue] = useState('')
-  const [outputValue, setOutputValue] = useState('')
-  const [inputBits, setInputBits] = useState(1)
-  const [outputBits, setOutputBits] = useState(1)
-  const inputRef = useRef(null)
-  const outputRef = useRef(null)
+  // Fixed i/o bit counts, set once during project init / import
+  const inputBits = useAtomValue(input_bit_count)
+  const outputBits = useAtomValue(output_bit_count)
 
-  useEffect(() => {
-    if (showPopup) {
-      inputRef.current?.focus()
-    }
-  }, [showPopup])
+  // One entry per bit ('' = empty, '0'/'1'/'-' = value). '-'-' is don't-care.
+  const [inputBitsArr, setInputBitsArr] = useState([])
+  const [outputBitsArr, setOutputBitsArr] = useState([])
+  const inputRefs = useRef([])
+  const outputRefs = useRef([])
 
-  function clampBitCount(value, floor = MIN_IO_BITS) {
-    // Preserve any existing data width beyond MAX_IO_BITS (e.g. from imported
-    // files), while capping NEW data at MAX_IO_BITS
-    const cap = Math.max(MAX_IO_BITS, floor)
-    return Math.max(MIN_IO_BITS, Math.min(cap, Number(value) || MIN_IO_BITS))
-  }
-
-  function getSelectedBitCounts(transitions) {
-    let maxInput = 1
-    let maxOutput = 1
-
-    for (const tr of transitions ?? []) {
-      if (!tr) continue
-      const [inp = '', out = ''] = String(tr.label ?? '').split('/')
-      maxInput = Math.max(maxInput, inp.length || 1)
-      if (FsmType !== 'moore') {
-        maxOutput = Math.max(maxOutput, out.length || 1)
-      }
-    }
-
-    if (FsmType === 'moore') {
-      for (const tr of transitions ?? []) {
-        if (!tr) continue
-        const node = store.get(node_list)?.[tr.to]
-        maxOutput = Math.max(maxOutput, String(node?.moore_output ?? '').length || 1)
-      }
-    }
-
-    return {
-      input: clampBitCount(maxInput, maxInput),
-      output: clampBitCount(maxOutput, maxOutput),
-    }
-  }
-
-  function keepAllowedSymbols(value, maxLength) {
-    // Display layer accepts '-' as don't-care; convert incoming 'x' to '-' for UI
-    return String(value ?? '')
+  // Split a stored bit string (0/1/x) into per-bit display chars ('-' for x)
+  function toBits(value, length) {
+    const cleaned = String(value ?? '')
       .replace(/x/g, '-')
       .replace(/[^01-]/g, '')
-      .slice(0, clampBitCount(maxLength, maxLength))
+      .slice(0, Math.min(length, MAX_IO_BITS))
+    const arr = cleaned.split('')
+    while (arr.length < Math.min(length, MAX_IO_BITS)) arr.push('')
+    return arr
   }
 
-  function isValidBits(value, maxLength) {
-    const limit = clampBitCount(maxLength, maxLength)
-    // Accept '-' in UI as don't-care; validation accepts 0/1/-
-    return value.length === limit && /^[01-]+$/.test(value)
+  function isComplete(arr, length) {
+    return (
+      arr.length >= length &&
+      arr.slice(0, length).every((bit) => bit === '0' || bit === '1' || bit === '-')
+    )
   }
 
   useEffect(() => {
-    const selectedBits = getSelectedBitCounts(TransitionList)
-    setInputBits(selectedBits.input)
-    setOutputBits(selectedBits.output)
-
+    if (!showPopup) return
     const currentTransition = TransitionList[ActiveTransition]
     const rawLabel = currentTransition?.isDraft ? '' : (currentTransition?.label ?? '')
     const [input = '', output = ''] = String(rawLabel).split('/')
-    setInputValue(keepAllowedSymbols(input, selectedBits.input))
-    setOutputValue(keepAllowedSymbols(output, selectedBits.output))
-  }, [ActiveTransition, TransitionList])
+    setInputBitsArr(toBits(input, inputBits))
+    setOutputBitsArr(toBits(output, outputBits))
+    // Focus the first bit box once the boxes are rendered
+    requestAnimationFrame(() => inputRefs.current[0]?.focus())
+  }, [showPopup, ActiveTransition, TransitionList, inputBits, outputBits])
+
+  function handleBitChange(kind, index, rawValue) {
+    let ch = String(rawValue).slice(-1)
+    if (ch === 'x') ch = '-'
+    if (!/^[01-]$/.test(ch)) return
+    const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
+    setter((prev) => {
+      const next = [...prev]
+      while (next.length <= index) next.push('')
+      next[index] = ch
+      return next
+    })
+    // Auto-advance to the next bit box
+    const count = kind === 'input' ? inputBits : outputBits
+    if (index < count - 1) {
+      const refs = kind === 'input' ? inputRefs.current : outputRefs.current
+      requestAnimationFrame(() => refs[index + 1]?.focus())
+    }
+  }
+
+  function handleBackspace(kind, index) {
+    const arr = kind === 'input' ? inputBitsArr : outputBitsArr
+    const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
+    const refs = kind === 'input' ? inputRefs.current : outputRefs.current
+    if (arr[index]) {
+      setter((prev) => {
+        const next = [...prev]
+        next[index] = ''
+        return next
+      })
+    } else if (index > 0) {
+      // Clear the previous bit and jump back
+      setter((prev) => {
+        const next = [...prev]
+        next[index - 1] = ''
+        return next
+      })
+      requestAnimationFrame(() => refs[index - 1]?.focus())
+    }
+  }
+
+  function handleKeyDown(kind, index, event) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      handleSubmit()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      handleCancel()
+    } else if (event.key === 'Backspace') {
+      event.preventDefault()
+      handleBackspace(kind, index)
+    } else if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault()
+      const refs = kind === 'input' ? inputRefs.current : outputRefs.current
+      refs[index - 1]?.focus()
+    } else if (event.key === 'ArrowRight') {
+      const count = kind === 'input' ? inputBits : outputBits
+      if (index < count - 1) {
+        event.preventDefault()
+        const refs = kind === 'input' ? inputRefs.current : outputRefs.current
+        refs[index + 1]?.focus()
+      }
+    }
+    // Tab / Shift+Tab keep the browser default (Shift+Tab jumps back a box)
+  }
 
   function handleCancel() {
     if (TransitionList[ActiveTransition]?.isDraft) {
@@ -216,89 +248,71 @@ function ChooseTransitionLabelFreeStyle() {
     }
     store.set(show_popup, false)
     store.set(active_transition, null)
-    setInputValue('')
-    setOutputValue('')
   }
 
   function handleSubmit() {
-    // Read directly from the DOM to ensure we get the latest value, even if the user hasn't triggered an onChange event
-    const input = keepAllowedSymbols(inputRef.current?.value ?? '', inputBits).trim()
-    const output = outputRef.current
-      ? keepAllowedSymbols(outputRef.current.value ?? '', outputBits).trim()
-      : ''
-    const valid =
-      isValidBits(input, inputBits) &&
-      (FsmType === 'moore' ? true : isValidBits(output, outputBits))
-    const normalizedInput = input
-    const normalizedOutput = output
+    const input = inputBitsArr.join('')
+    const output = outputBitsArr.join('')
+    const inputOk = isComplete(inputBitsArr, inputBits)
+    const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
 
-    // Persist using 'x' as internal don't-care, convert '-' back to 'x'
-    const persistedInput = String(normalizedInput ?? '').replace(/-/g, 'x')
-    const persistedOutput = String(normalizedOutput ?? '').replace(/-/g, 'x')
-
-    if (!valid) {
+    if (!inputOk || !outputOk) {
+      const required = `Enter exactly ${inputBits} input bit${inputBits === 1 ? '' : 's'}${
+        FsmType !== 'moore'
+          ? ` and ${outputBits} output bit${outputBits === 1 ? '' : 's'} (0/1/x)`
+          : ' (0/1/x)'
+      }`
+      store.set(alert, required)
+      setTimeout(() => store.set(alert, ''), 3000)
       if (TransitionList[ActiveTransition]?.isDraft) {
         removeTransitionById(ActiveTransition)
         sendExportToMainState()
       }
-      setInputValue('')
-      setOutputValue('')
       store.set(show_popup, false)
       store.set(active_transition, null)
       return
     }
 
+    // Persist using 'x' as internal don't-care, convert '-' back to 'x'
+    const persistedInput = input.replace(/-/g, 'x')
+    const persistedOutput = output.replace(/-/g, 'x')
     handleTransitionSave(
       FsmType === 'moore' ? [persistedInput] : [`${persistedInput}/${persistedOutput}`],
     )
-    setInputValue('')
-    setOutputValue('')
   }
 
-  function handleInputKeyDown(event) {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      handleSubmit()
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      handleCancel()
-    }
+  function renderBitRow(kind, label, count, arr, refs) {
+    const total = Math.min(count, MAX_IO_BITS)
+    return (
+      <span className="w-full mb-2">
+        <p className="font-github text-white text-xs pb-1">
+          {label} ({total} bit{total === 1 ? '' : 's'}):
+        </p>
+        <div className="flex gap-1.5">
+          {Array.from({ length: total }, (_, i) => (
+            <input
+              key={i}
+              ref={(el) => {
+                refs.current[i] = el
+              }}
+              type="text"
+              maxLength={1}
+              value={arr[i] ?? ''}
+              className="w-6 h-8 text-center bg-surface-1 border border-surface-3 rounded outline-none font-mono text-sm text-white hover:border-white/40 focus:border-blue-500 transition-colors"
+              onChange={(e) => handleBitChange(kind, i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(kind, i, e)}
+            />
+          ))}
+        </div>
+      </span>
+    )
   }
 
   return (
     <>
-      <span className="w-full mb-2">
-        <p className="font-github text-white text-xs pb-1">input: </p>
-        <input
-          ref={inputRef}
-          value={inputValue}
-          className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-          type="text"
-          maxLength={Math.min(inputBits, MAX_IO_BITS)}
-          pattern="[01-]*"
-          onChange={(e) => setInputValue(keepAllowedSymbols(e.target.value, inputBits))}
-          onKeyDown={handleInputKeyDown}
-          placeholder=""
-        />
-      </span>
-      {FsmType !== 'moore' && (
-        <span className="w-full">
-          <p className="font-github text-white text-xs pb-1">output: </p>
-          <input
-            ref={outputRef}
-            value={outputValue}
-            className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
-            type="text"
-            maxLength={Math.min(outputBits, MAX_IO_BITS)}
-            pattern="[01-]*"
-            onChange={(e) => setOutputValue(keepAllowedSymbols(e.target.value, outputBits))}
-            onKeyDown={handleInputKeyDown}
-            placeholder=""
-          />
-        </span>
-      )}
+      {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
+      {FsmType !== 'moore' &&
+        renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
       <div className="flex gap-3 mt-5">
         <button
           type="button"
