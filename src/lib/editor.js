@@ -93,7 +93,8 @@ function expandTransitionForEditor(transition, nodes, nodeBitCount) {
   const labelOutput = String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
   const label = `${labelInput}/${labelOutput}`
   const targetPattern = normalizePatternBits(
-    transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+    transition.toBinaryId ??
+      (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
     nodeBitCount,
     'x',
     'left',

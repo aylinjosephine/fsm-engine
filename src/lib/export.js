@@ -687,7 +687,8 @@ window.addEventListener('message', (event) => {
           ? ''
           : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
         const targetPattern = normalizePatternBits(
-          transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+          transition.toBinaryId ??
+            (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
           nodeBitCount,
           'x',
           'left',
@@ -729,7 +730,8 @@ window.addEventListener('message', (event) => {
             ? baseLabelInput
             : `${baseLabelInput}/${baseLabelOutput}`
       const targetPattern = normalizePatternBits(
-        transition.toBinaryId ?? (transition.to >= 0 ? Number(transition.to).toString(2) : ''),
+        transition.toBinaryId ??
+          (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
         nodeBitCount,
         'x',
         'left',
@@ -757,6 +759,14 @@ window.addEventListener('message', (event) => {
         })
         return
       }
+
+      // All-x target = unassigned next state: don't draw arrows to every node,
+      // keep it unresolved so it round-trips.
+      if (/^x+$/.test(targetPattern)) {
+        unresolvedTransitions.push(transition)
+        return
+      }
+
       const concreteTargets = expandDontCares(targetPattern)
 
       if (concreteTargets.length > 0) {
@@ -870,19 +880,18 @@ window.addEventListener('message', (event) => {
     // limited to the configured values.
     store.set(input_bit_count, Number(fsm.inputBitCount) || 1)
     store.set(output_bit_count, Number(fsm.outputBitCount) || 1)
-    // transition atoms are created below
+    // Apply transitions synchronously so the live-export echo fires even when
+    // the iframe is hidden and requestAnimationFrame is suspended (prevents the
+    // parent's suppress flag from lingering and swallowing the next edit).
+    store.set(transition_list, transitionAtoms)
+    updateFromState = false
+    clearTimeout(forceUnlockId)
+    // Cosmetic Konva cleanup/geometry after React commits; safe to skip when RAF paused.
     requestAnimationFrame(() => {
       removeRenderedTransitions(removedTransitionIds)
       removeRenderedStates(existingNodeIds, nodeAtoms)
-      store.set(transition_list, transitionAtoms)
-      requestAnimationFrame(() => {
-        const recalculatedTransitions = recomputeCommittedTransitionGeometry()
-        requestAnimationFrame(() => {
-          syncRenderedTransitions(recalculatedTransitions)
-          updateFromState = false
-          clearTimeout(forceUnlockId)
-        })
-      })
+      const recalculatedTransitions = recomputeCommittedTransitionGeometry()
+      syncRenderedTransitions(recalculatedTransitions)
     })
   } catch (error) {
     updateFromState = false
