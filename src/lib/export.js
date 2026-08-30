@@ -570,10 +570,7 @@ export function extractFsmData() {
       return definedNodes.some((node) => node?.id === t.to)
     })
 
-  const exportedTransitions =
-    fsmType === 'moore'
-      ? visibleTransitions.filter((transition) => transition.to >= 0)
-      : visibleTransitions
+  const exportedTransitions = visibleTransitions
 
   const exportedPreservedTransitions = fsmType === 'moore' ? [] : preservedUnresolvedTransitions
 
@@ -688,7 +685,9 @@ window.addEventListener('message', (event) => {
           : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
         const targetPattern = normalizePatternBits(
           transition.toBinaryId ??
-            (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
+            (transition.to >= 0
+              ? Number(transition.to).toString(2).padStart(nodeBitCount, '0')
+              : ''),
           nodeBitCount,
           'x',
           'left',
@@ -856,11 +855,12 @@ window.addEventListener('message', (event) => {
       nodesMap,
     )
 
-    // Preserve any existing transitions (drafts or user-saved) that aren't part of the incoming app state
+    // Preserve only genuine user drafts from the existing transitions that are not present in the incoming list
     const incomingIds = new Set(transitionAtoms.map((t) => t?.id).filter((id) => id != null))
     for (const existing of existingTransitions) {
       if (!existing) continue
       if (incomingIds.has(existing.id)) continue
+      if (!existing.isDraft) continue
       transitionAtoms[existing.id] = {
         ...existing,
         points: getTransitionPoints(
