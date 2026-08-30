@@ -1,20 +1,8 @@
 import { useAtom, useAtomValue } from 'jotai'
-import {
-  Cable,
-  FilePlus,
-  ImageDown,
-  MinusCircleIcon,
-  Move,
-  PlusCircleIcon,
-  Undo2,
-  Redo2,
-  Edit,
-  Sparkles,
-} from 'lucide-react'
-import { editor_state, transition_pairs, confirm_dialog_atom } from '../lib/stores'
-import { newProject, getTransitionPoints, HandleAutoLayout } from '../lib/editor'
+import { Cable, MinusCircleIcon, Move, PlusCircleIcon, Undo2, Redo2, Sparkles } from 'lucide-react'
+import { editor_state, transition_pairs } from '../lib/stores'
+import { getTransitionPoints, HandleAutoLayout } from '../lib/editor'
 import { undo, redo } from '../lib/history'
-import { useSetAtom } from 'jotai'
 
 // Define the Components of the Dock
 // Icon Look Constants
@@ -26,7 +14,6 @@ const Dock = () => {
   // Jotai Atoms
   const [editorState, setEditorState] = useAtom(editor_state)
   const [_transitionPairs, setTransitionPairs] = useAtom(transition_pairs)
-  const setConfirmDialog = useSetAtom(confirm_dialog_atom)
   // Jotai Atoms
 
   const dockItems = [

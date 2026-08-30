@@ -120,34 +120,6 @@ export function removeTransitionById(id) {
   return true
 }
 
-// compute x / y bit number
-export function getEditorBitLengths() {
-  const transitions = store.get(transition_list) ?? []
-  const moore = isMooreMode()
-  const nodes = store.get(node_list) ?? []
-
-  let maxInput = 1
-  let maxOutput = 1
-
-  for (const t of transitions) {
-    if (!t) continue
-    if (!moore && t.hiddenDontCare) continue
-    const label = String(t.label ?? '')
-    const [inp = '', out = ''] = label.split('/')
-    maxInput = Math.max(maxInput, inp.length || 1)
-    if (moore) {
-      for (const node of nodes) {
-        if (!node) continue
-        maxOutput = Math.max(maxOutput, String(node.moore_output ?? '').length || 1)
-      }
-    } else {
-      maxOutput = Math.max(maxOutput, out.length || 1)
-    }
-  }
-
-  return { maxInput, maxOutput }
-}
-
 function padLabelToBitLengths(label, maxInput, maxOutput) {
   const [inpRaw = '', outRaw = ''] = label.split('/')
   const inp = inpRaw.padEnd(maxInput, 'x').slice(0, maxInput)
@@ -157,62 +129,6 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
   const out = outRaw.padEnd(maxOutput, 'x').slice(0, maxOutput)
 
   return `${inp}/${out}`
-}
-
-function isValidBits(value) {
-  return /^[01x]+$/.test(String(value ?? '').trim())
-}
-
-function getStateBits() {
-  const nodes = (store.get(node_list) ?? []).filter(Boolean)
-  const maxId = nodes.reduce((m, n) => Math.max(m, n?.id ?? -1), -1)
-  const totalStates = Math.max(1, maxId + 1)
-  return totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
-}
-
-export function handleInvalidTransitionFallback(inputValue, outputValue) {
-  const active_tr = store.get(active_transition)
-  const activeTransition = store.get(transition_list)[active_tr]
-  if (!activeTransition) return
-
-  // Use the fixed bit counts
-  const maxInput = store.get(input_bit_count) || 1
-  const maxOutput = store.get(output_bit_count) || 1
-  const normalizedInputValue = String(inputValue ?? '')
-    .replace(/-/g, 'x')
-    .trim()
-  const normalizedOutputValue = String(outputValue ?? '')
-    .replace(/-/g, 'x')
-    .trim()
-  const input = isValidBits(normalizedInputValue) ? normalizedInputValue : 'x'.repeat(maxInput)
-  const output = isValidBits(normalizedOutputValue) ? normalizedOutputValue : 'x'.repeat(maxOutput)
-  const paddedLabel = isMooreMode()
-    ? padLabelToBitLengths(input, maxInput, maxOutput)
-    : padLabelToBitLengths(`${input}/${output}`, maxInput, maxOutput)
-  const unresolvedPattern = 'x'.repeat(getStateBits())
-
-  addToHistory()
-  store.set(show_popup, false)
-
-  store.set(transition_list, (old) => {
-    const next = [...old]
-    if (next[active_tr]) {
-      next[active_tr] = {
-        ...next[active_tr],
-        label: paddedLabel,
-        isDraft: false,
-        to: -1,
-        toBinaryId: unresolvedPattern,
-        forceUnresolved: true,
-      }
-    }
-    return next
-  })
-
-  store.set(alert, 'The transition is invalid and was stored as unresolved (next state = x...x).')
-  setTimeout(() => store.set(alert, ''), 2500)
-  store.set(active_transition, null)
-  sendExportToMainState()
 }
 
 // Handle a click event on a transition
