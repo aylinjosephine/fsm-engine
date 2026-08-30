@@ -73,9 +73,6 @@ export const alert = atom('')
 export const show_popup = atom(false)
 export const active_transition = atom(null)
 
-// Show hidden don't-care transitions half-transparent
-export const show_hidden_transitions = atom(false)
-
 // Store to cache contributors
 export const contributors_data = atom(null)
 
