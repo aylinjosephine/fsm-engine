@@ -1,8 +1,7 @@
 import { useAtom, useAtomValue } from 'jotai'
-import { Cable, MinusCircleIcon, Move, PlusCircleIcon, Undo2, Redo2, Sparkles } from 'lucide-react'
+import { Cable, MinusCircleIcon, Move, PlusCircleIcon, Sparkles } from 'lucide-react'
 import { editor_state, transition_pairs } from '../lib/stores'
-import { getTransitionPoints, HandleAutoLayout } from '../lib/editor'
-import { undo, redo } from '../lib/history'
+import { HandleAutoLayout } from '../lib/editor'
 
 // Define the Components of the Dock
 // Icon Look Constants
@@ -38,16 +37,6 @@ const Dock = () => {
       name: 'Auto Layout',
       icon: <Sparkles stroke={iconFillColor} size={iconSize} />,
       onclick: () => HandleAutoLayout(),
-    },
-    {
-      name: 'Undo',
-      icon: <Undo2 stroke={iconFillColor} size={iconSize} />,
-      onclick: () => undo(getTransitionPoints),
-    },
-    {
-      name: 'Redo',
-      icon: <Redo2 stroke={iconFillColor} size={iconSize} />,
-      onclick: () => redo(getTransitionPoints),
     },
   ]
 
