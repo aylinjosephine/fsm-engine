@@ -743,18 +743,22 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transition
 
 function makeTransition(id, start_node, end_node) {
   const points = getTransitionPoints(start_node, end_node, id)
+  const isLightMode =
+    typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
+  const themeStroke = isLightMode ? '#334155cc' : '#ffffffdd'
+  const themeLabel = isLightMode ? '#152033' : '#ffffff'
 
   const newTransition = {
     id,
-    stroke: '#ffffffdd',
+    stroke: themeStroke,
     strokeWidth: 2,
-    fill: '#ffffffdd',
+    fill: themeStroke,
     points,
     tension: start_node == end_node ? 1 : 0.5,
     label: '',
     fontSize: 14,
     fontStyle: 'bold',
-    label_fill: '#ffffff',
+    label_fill: themeLabel,
     label_align: 'center',
     from: start_node,
     to: end_node,
