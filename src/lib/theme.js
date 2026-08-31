@@ -1,11 +1,9 @@
-export function syncThemeFromParent() {
-  const root = document.documentElement
-
-  let mode = 'dark'
+export function getCurrentThemeMode() {
+  if (typeof document === 'undefined') return 'dark'
 
   try {
     const parentRoot = window.parent?.document?.documentElement
-    if (parentRoot) {
+    if (parentRoot && parentRoot !== document.documentElement) {
       const parentTheme =
         parentRoot.dataset.theme ||
         (parentRoot.classList.contains('light')
@@ -15,12 +13,23 @@ export function syncThemeFromParent() {
             : null)
 
       if (parentTheme === 'light' || parentTheme === 'dark') {
-        mode = parentTheme
+        return parentTheme
       }
     }
   } catch (error) {
-    console.debug('FSM engine could not read parent theme, defaulting to dark.', error)
+    console.debug('FSM engine could not read parent theme, falling back to iframe theme.', error)
   }
+
+  const root = document.documentElement
+  const modeFromRoot = root.dataset.theme || (root.classList.contains('light') ? 'light' : null)
+  if (modeFromRoot === 'light' || modeFromRoot === 'dark') return modeFromRoot
+
+  return 'dark'
+}
+
+export function syncThemeFromParent() {
+  const root = document.documentElement
+  const mode = getCurrentThemeMode()
 
   root.classList.toggle('dark', mode === 'dark')
   root.classList.toggle('light', mode === 'light')

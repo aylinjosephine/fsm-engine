@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { getCurrentThemeMode } from '../lib/theme.js'
 import {
   active_transition,
   fsm_type,
@@ -41,6 +42,23 @@ function ChooseTransitionLabel() {
   const [hint, setHint] = useState('')
   const inputRefs = useRef([])
   const outputRefs = useRef([])
+  const [themeMode, setThemeMode] = useState(getCurrentThemeMode)
+  const isLightMode = themeMode === 'light'
+
+  useEffect(() => {
+    const updateTheme = () => setThemeMode(getCurrentThemeMode())
+    updateTheme()
+
+    const root = document.documentElement
+    const parentRoot = window.parent?.document?.documentElement
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    if (parentRoot && parentRoot !== root) {
+      observer.observe(parentRoot, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    }
+
+    return () => observer.disconnect()
+  }, [])
 
   // Split a stored bit string (0/1/x) into per-bit display chars ('-' for x)
   function toBits(value, length) {
@@ -289,7 +307,7 @@ function ChooseTransitionLabel() {
     const total = Math.min(count, MAX_IO_BITS)
     return (
       <span className="w-full mb-2.5">
-        <p className="font-github text-white text-sm pb-2 font-semibold">
+        <p className="font-github text-on-surface text-sm pb-2 font-semibold">
           {label}: {total} bit{total === 1 ? '' : 's'}
         </p>
         <div className="flex gap-1.5">
@@ -304,10 +322,10 @@ function ChooseTransitionLabel() {
               value={arr[i] ?? ''}
               aria-label={`${label} bit ${i + 1}`}
               className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                arr[i] === '-' ? 'text-amber-300' : 'text-white'
+                arr[i] === '-' ? 'text-amber-500' : 'text-on-surface'
               } ${
                 invalidAttempt && !(arr[i] ?? '') ? 'border-red-500' : 'border-border-bg'
-              } hover:border-white/40 focus:border-blue-500`}
+              } hover:border-surface-3 focus:border-primary`}
               onChange={(e) => handleBitChange(kind, i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(kind, i, e)}
             />
@@ -326,9 +344,9 @@ function ChooseTransitionLabel() {
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-primary-bg rounded-3xl border border-border-bg shadow-[0px_0px_50px_0px_#000000]/70"
+        className="h-fit w-fit py-5 px-5 flex flex-col justify-center items-center bg-surface-1 rounded-3xl border border-border-bg shadow-[0px_0px_50px_0px_#000000]/70"
       >
-        <h2 className="font-github text-2xl text-white font-medium text-center mb-4">
+        <h2 className="font-github text-2xl text-on-surface font-medium text-center mb-4">
           Edit Transition
         </h2>
         {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
@@ -341,15 +359,15 @@ function ChooseTransitionLabel() {
           <button
             type="button"
             onClick={handleCancel}
-            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-gray-600 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-on-surface bg-surface-2 px-6 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
           >
-            <X size={16} color="#ffffff" />
+            <X size={16} color={isLightMode ? '#152033' : '#ffffff'} />
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-white bg-blue-500 px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-on-primary bg-primary px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
           >
             <CircleCheck size={18} color="#ffffff" />
             Done

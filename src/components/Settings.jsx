@@ -2,6 +2,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { CircleCheck, CirclePower, CircleX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MAX_STATE_NAME_LENGTH, sanitizeStateName } from '../lib/constants'
+import { getCurrentThemeMode } from '../lib/theme.js'
 import { HandleSaveSettings } from '../lib/settings'
 import {
   current_selected,
@@ -29,6 +30,24 @@ const Settings = () => {
   // State Hooks for input fields
   const nameInputRef = useRef(null)
   const mooreRefs = useRef([])
+
+  const [themeMode, setThemeMode] = useState(getCurrentThemeMode)
+  const isLightMode = themeMode === 'light'
+
+  useEffect(() => {
+    const updateTheme = () => setThemeMode(getCurrentThemeMode())
+    updateTheme()
+
+    const root = document.documentElement
+    const parentRoot = window.parent?.document?.documentElement
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    if (parentRoot && parentRoot !== root) {
+      observer.observe(parentRoot, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    }
+
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (editorState === 'settings') {
@@ -216,26 +235,28 @@ const Settings = () => {
         onMouseDown={(e) => e.stopPropagation()}
         className="flex flex-col gap-5 justify-center px-5 py-5 w-fit h-fit bg-primary-bg border border-border-bg rounded-3xl shadow-[0px_0px_50px_0px_#000000]/70 select-none"
       >
-        <h2 className="font-github text-2xl text-white font-medium text-center">State Options</h2>
+        <h2 className="font-github text-2xl text-on-surface font-medium text-center">
+          State Options
+        </h2>
 
         <span>
-          <p className="font-github text-white text-sm pb-2 font-semibold">State Name</p>
+          <p className="font-github text-on-surface text-sm pb-2 font-semibold">State Name</p>
           <input
             ref={nameInputRef}
             value={stateName}
             maxLength={MAX_STATE_NAME_LENGTH}
-            className={`px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border outline-none transition-all ease-in-out ${
+            className={`px-1 py-2 text-sm h-9 w-full font-medium text-on-surface font-github rounded-lg border outline-none transition-all ease-in-out ${
               invalidAttempt && !sanitizeStateName(stateName).trim()
                 ? 'border-red-500'
                 : 'border-border-bg'
-            } hover:border-white/30 focus:border-blue-500`}
+            } hover:border-surface-3 focus:border-primary`}
             type="text"
             onChange={(e) => handleNameChange(e.target.value)}
           />
         </span>
 
         <span>
-          <p className="font-github text-white text-sm pb-2 font-semibold">State Color</p>
+          <p className="font-github text-on-surface text-sm pb-2 font-semibold">State Color</p>
           <div className="flex items-center gap-4">
             <input
               type="color"
@@ -251,15 +272,15 @@ const Settings = () => {
                 isInitial ? 'bg-blue-500 border-blue-500' : 'bg-secondary-bg border-border-bg'
               }`}
             >
-              <CirclePower color="#ffffff" size={18} />
-              <p className="text-white font-github text-xs font-medium">Initial State</p>
+              <CirclePower color={isLightMode ? '#152033' : '#ffffff'} size={18} />
+              <p className="text-on-surface font-github text-xs font-medium">Initial State</p>
             </span>
           </div>
         </span>
 
         {fsmType === 'moore' && (
           <span>
-            <p className="font-github text-white text-sm pb-2 font-semibold">
+            <p className="font-github text-on-surface text-sm pb-2 font-semibold">
               Output: {outputBitCount} bit{outputBitCount === 1 ? '' : 's'}
             </p>
             <div className="flex gap-1.5">
@@ -274,10 +295,10 @@ const Settings = () => {
                   value={mooreBits[i] ?? ''}
                   aria-label={`state output bit ${i + 1}`}
                   className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                    mooreBits[i] === '-' ? 'text-amber-300' : 'text-white'
+                    mooreBits[i] === '-' ? 'text-amber-500' : 'text-on-surface'
                   } ${
                     invalidAttempt && !(mooreBits[i] ?? '') ? 'border-red-500' : 'border-border-bg'
-                  } hover:border-white/40 focus:border-blue-500`}
+                  } hover:border-surface-3 focus:border-primary`}
                   onChange={(e) => handleMooreBitChange(i, e.target.value)}
                   onKeyDown={(e) => handleMooreKeyDown(i, e)}
                 />
@@ -293,18 +314,18 @@ const Settings = () => {
         <span className="flex gap-5 items-center justify-center my-2 w-full">
           <span
             onClick={handleCancel}
-            className="flex items-center justify-center gap-2 bg-secondary-fg w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
+            className="flex items-center justify-center gap-2 bg-surface-2 text-on-surface w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
           >
-            <CircleX color="#000000" size={18} />
-            <p className="text-black font-github text-sm font-semibold">Cancel</p>
+            <CircleX color={isLightMode ? '#152033' : '#ffffff'} size={18} />
+            <p className="font-github text-sm font-semibold">Cancel</p>
           </span>
 
           <span
             onClick={handleSave}
-            className="flex items-center justify-center gap-2 bg-blue-500 w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
+            className="flex items-center justify-center gap-2 bg-primary text-on-primary w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
           >
             <CircleCheck color="#ffffff" size={18} />
-            <p className="text-white font-github text-sm font-semibold">Save</p>
+            <p className="font-github text-sm font-semibold">Save</p>
           </span>
         </span>
       </div>

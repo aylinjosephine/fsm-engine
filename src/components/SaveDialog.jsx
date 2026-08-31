@@ -23,11 +23,11 @@ const SaveDialog = () => {
         EditorState === 'Save FSM' ? 'top-12' : '-top-20 opacity-0'
       }`}
     >
-      <div className="h-full w-fit px-2 bg-primary-bg rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080] flex justify-center items-center gap-3">
+      <div className="h-full w-fit px-2 bg-surface-1 rounded-xl border border-border-bg shadow-[0px_0px_50px_0px_#00000080] flex justify-center items-center gap-3">
         <select
           value={saveDetails.type}
           onChange={(e) => setSaveDetails({ ...saveDetails, type: e.target.value })}
-          className="text-white font-github text-base px-2 border border-border-bg hover:border-input-active focus:border-2 focus:border-blue-500 transition-all ease-in-out outline-none h-9 rounded-lg mr-2"
+          className="text-on-surface font-github text-base px-2 border border-border-bg hover:border-input-active focus:border-2 focus:border-blue-500 transition-all ease-in-out outline-none h-9 rounded-lg mr-2"
         >
           <option value={'png'}>Image</option>
           <option value={'json'}>Project</option>
@@ -35,7 +35,7 @@ const SaveDialog = () => {
 
         <input
           value={saveDetails.name}
-          className="px-1 py-2 text-sm h-9 w-full font-medium text-white font-github rounded-lg border border-border-bg outline-none hover:border-white/30 focus:border-blue-500 transition-all ease-in-out"
+          className="px-1 py-2 text-sm h-9 w-full font-medium text-on-surface font-github rounded-lg border border-border-bg outline-none hover:border-surface-3 focus:border-primary transition-all ease-in-out"
           type="text"
           placeholder="Enter File Name..."
           onChange={(e) => setSaveDetails({ ...saveDetails, name: e.target.value })}
@@ -45,7 +45,7 @@ const SaveDialog = () => {
           <select
             value={saveDetails.resolution}
             onChange={(e) => setSaveDetails({ ...saveDetails, resolution: e.target.value })}
-            className="text-white font-github text-base px-2 border border-border-bg hover:border-input-active focus:border-2 focus:border-blue-500 transition-all ease-in-out outline-none h-9 rounded-lg mr-2"
+            className="text-on-surface font-github text-base px-2 border border-border-bg hover:border-input-active focus:border-2 focus:border-blue-500 transition-all ease-in-out outline-none h-9 rounded-lg mr-2"
           >
             <option value={1}>1x</option>
             <option value={2}>2x</option>
@@ -58,10 +58,10 @@ const SaveDialog = () => {
         <button
           type="button"
           onClick={() => setEditorState(null)}
-          className="flex items-center justify-center gap-2 bg-secondary-fg w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
+          className="flex items-center justify-center gap-2 bg-surface-2 text-on-surface w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
         >
-          <X size={18} color="#000000" />
-          <p className="text-sm font-semibold text-black font-github">Cancel</p>
+          <X size={18} color="currentColor" />
+          <p className="text-sm font-semibold font-github">Cancel</p>
         </button>
 
         <button
@@ -107,10 +107,10 @@ const SaveDialog = () => {
             setEditorState(null)
             setSaveDetails({ name: '', resolution: 2, type: 'png' })
           }}
-          className="flex items-center justify-center gap-2 bg-blue-500 w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
+          className="flex items-center justify-center gap-2 bg-primary text-on-primary w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
         >
           <HardDriveDownload size={18} color="#ffffff" />
-          <p className="text-sm font-semibold text-white font-github">Save</p>
+          <p className="text-sm font-semibold font-github">Save</p>
         </button>
       </div>
     </div>

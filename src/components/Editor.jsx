@@ -20,6 +20,7 @@ import {
   fsm_type,
 } from '../lib/stores'
 import { handleTransitionClick } from '../lib/transitions'
+import { getCurrentThemeMode } from '../lib/theme.js'
 
 const Editor = () => {
   // Jotai Atoms
@@ -32,13 +33,30 @@ const Editor = () => {
   const fsmType = useAtomValue(fsm_type)
   const [hoveredStateId, setHoveredStateId] = useState(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
+  const [themeMode, setThemeMode] = useState(getCurrentThemeMode)
   const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Guide'])
   const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
   const transitionsSelectable = editorState !== 'Connect'
-  const onSurfaceTextColor =
-    typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
-      ? '#152033'
-      : '#ffffff'
+  const isLightMode = themeMode === 'light'
+  const onSurfaceTextColor = isLightMode ? '#152033' : '#ffffff'
+  const transitionStrokeColor = isLightMode ? '#334155cc' : '#ffffffdd'
+  const transitionLabelFill = isLightMode ? '#edf3ff' : '#0d0d18'
+  const transitionLabelTextColor = isLightMode ? '#152033' : '#ffffff'
+
+  useEffect(() => {
+    const updateTheme = () => setThemeMode(getCurrentThemeMode())
+    updateTheme()
+
+    const root = document.documentElement
+    const parentRoot = window.parent?.document?.documentElement
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    if (parentRoot && parentRoot !== root) {
+      observer.observe(parentRoot, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+    }
+
+    return () => observer.disconnect()
+  }, [])
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -227,7 +245,13 @@ const Editor = () => {
                       <Arrow
                         id={`transition_${transition.id}`}
                         stroke={
-                          hoveredTransitionId === transition.id ? '#93c5fd' : transition.stroke
+                          hoveredTransitionId === transition.id
+                            ? '#93c5fd'
+                            : transition.stroke &&
+                                transition.stroke !== '#ffffffdd' &&
+                                transition.stroke !== '#334155cc'
+                              ? transition.stroke
+                              : transitionStrokeColor
                         }
                         strokeWidth={
                           hoveredTransitionId === transition.id
@@ -288,8 +312,14 @@ const Editor = () => {
                             }}
                           >
                             <Tag
-                              fill={hoveredTransitionId === transition.id ? '#1b2638' : '#0d0d18'}
-                              opacity={0.85}
+                              fill={
+                                hoveredTransitionId === transition.id
+                                  ? isLightMode
+                                    ? '#dfe9ff'
+                                    : '#1b2638'
+                                  : transitionLabelFill
+                              }
+                              opacity={0.9}
                               cornerRadius={6}
                               lineJoin="round"
                             />
@@ -298,7 +328,13 @@ const Editor = () => {
                               text={labelText}
                               fontSize={transition.fontSize}
                               fontStyle={transition.fontStyle}
-                              fill={transition.label_fill}
+                              fill={
+                                transition.label_fill &&
+                                transition.label_fill !== '#ffffff' &&
+                                transition.label_fill !== '#152033'
+                                  ? transition.label_fill
+                                  : transitionLabelTextColor
+                              }
                               verticalAlign="middle"
                               align="center"
                               padding={1}
