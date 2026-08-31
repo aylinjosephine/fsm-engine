@@ -35,6 +35,10 @@ const Editor = () => {
   const hoverDisabledModes = new Set(['Add', 'Undo', 'Redo', 'Auto Layout', 'Guide'])
   const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
   const transitionsSelectable = editorState !== 'Connect'
+  const onSurfaceTextColor =
+    typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
+      ? '#152033'
+      : '#ffffff'
 
   // responsive stage size
   const [stageSize, setStageSize] = useState({
@@ -137,7 +141,7 @@ const Editor = () => {
                           text={labelText}
                           fontSize={fontSize}
                           fontStyle="bold"
-                          fill="#ffffff"
+                          fill={onSurfaceTextColor}
                           align="center"
                           verticalAlign="middle"
                           wrap="none"

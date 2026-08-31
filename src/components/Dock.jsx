@@ -18,7 +18,7 @@ import { useSetAtom } from 'jotai'
 
 // Define the Components of the Dock
 // Icon Look Constants
-const iconFillColor = '#ffffff'
+const iconFillColor = 'currentColor'
 const iconSize = 18
 
 // Define the Components of the Dock
@@ -88,10 +88,10 @@ const Dock = () => {
                 key={idx}
                 type="button"
                 onClick={item.onclick ? item.onclick : () => default_onclick(item)}
-                className={`text-white flex gap-2 justify-center items-center font-github whitespace-nowrap ${
+                className={`text-on-surface flex gap-2 justify-center items-center font-github whitespace-nowrap ${
                   isModeButton(item.name) &&
                   ((item.name === 'Move' && editorState === null) || item.name === editorState)
-                    ? 'bg-blue-500'
+                    ? 'bg-blue-500 text-white'
                     : 'bg-secondary-bg'
                 } text-sm md:text-base px-3 py-2 border border-border-bg rounded-xl cursor-pointer hover:-translate-y-1 hover:scale-105 active:scale-95 transition-all ease-in-out`}
               >

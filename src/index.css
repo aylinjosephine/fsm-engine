@@ -4,25 +4,120 @@
   font-family: 'github';
   src: url('/fonts/github_font.ttf');
 }
+
 @theme {
   --font-github: github;
-  --color-primary-bg: #13131c;
-  --color-secondary-bg: #1f1f1f;
 
-  --color-border-bg: #62a1ff;
+  --dark-color-elevated: #050e17;
+  --dark-color-surface-1: #1b1b25;
+  --dark-color-surface-2: #32324a;
+  --dark-color-surface-3: rgb(75, 75, 110);
+  --dark-color-surface-3-50: rgba(75, 75, 110, 0.5);
+  --dark-color-on-surface: white;
+  --dark-color-on-surface-disabled: #9498a3;
+  --dark-color-primary: #3d85f2;
+  --dark-color-primary-variant: #8ec5ff;
+  --dark-color-on-primary: white;
+  --dark-color-secondary: #81e6a7;
+  --dark-color-secondary-variant: #71d999;
+  --dark-color-error: #a51f1f;
+  --dark-color-warning: #d3a210;
 
-  --color-primary-fg: #171717;
-  --color-secondary-fg: #e5e9f0;
-  --color-teritiary-fg: #eceff4;
+  --light-color-elevated: #ffffff;
+  --light-color-surface-1: #e5edf7;
+  --light-color-surface-2: #cbd6ec;
+  --light-color-surface-3: #96a6b9;
+  --light-color-surface-3-50: rgba(222, 226, 230, 0.5);
+  --light-color-on-surface: #000000;
+  --light-color-on-surface-disabled: #6c757d;
+  --light-color-primary: #7dacdf;
+  --light-color-primary-variant: #003d82;
+  --light-color-on-primary: white;
+  --light-color-secondary: #0f7b49;
+  --light-color-secondary-variant: #048149;
+  --light-color-error: #c04949;
+  --light-color-warning: #995c00;
 
-  --color-text-primary: #ffffff;
+  --color-elevated: var(--dark-color-elevated);
+  --color-surface-1: var(--dark-color-surface-1);
+  --color-surface-2: var(--dark-color-surface-2);
+  --color-surface-3: var(--dark-color-surface-3);
+  --color-surface-3-50: var(--dark-color-surface-3-50);
+  --color-on-surface: var(--dark-color-on-surface);
+  --color-on-surface-disabled: var(--dark-color-on-surface-disabled);
+  --color-primary: var(--dark-color-primary);
+  --color-primary-variant: var(--dark-color-primary-variant);
+  --color-on-primary: var(--dark-color-on-primary);
+  --color-secondary: var(--dark-color-secondary);
+  --color-secondary-variant: var(--dark-color-secondary-variant);
+  --color-error: var(--dark-color-error);
+  --color-warning: var(--dark-color-warning);
+}
 
-  --color-input-active: #b1b1b1;
+:root {
+  --color-elevated: var(--dark-color-elevated);
+  --color-surface-1: var(--dark-color-surface-1);
+  --color-surface-2: var(--dark-color-surface-2);
+  --color-surface-3: var(--dark-color-surface-3);
+  --color-surface-3-50: var(--dark-color-surface-3-50);
+  --color-on-surface: var(--dark-color-on-surface);
+  --color-on-surface-disabled: var(--dark-color-on-surface-disabled);
+  --color-primary: var(--dark-color-primary);
+  --color-primary-variant: var(--dark-color-primary-variant);
+  --color-on-primary: var(--dark-color-on-primary);
+  --color-secondary: var(--dark-color-secondary);
+  --color-secondary-variant: var(--dark-color-secondary-variant);
+  --color-error: var(--dark-color-error);
+  --color-warning: var(--dark-color-warning);
+}
+
+:root.dark {
+  --color-elevated: var(--dark-color-elevated);
+  --color-surface-1: var(--dark-color-surface-1);
+  --color-surface-2: var(--dark-color-surface-2);
+  --color-surface-3: var(--dark-color-surface-3);
+  --color-surface-3-50: var(--dark-color-surface-3-50);
+  --color-on-surface: var(--dark-color-on-surface);
+  --color-on-surface-disabled: var(--dark-color-on-surface-disabled);
+  --color-primary: var(--dark-color-primary);
+  --color-primary-variant: var(--dark-color-primary-variant);
+  --color-on-primary: var(--dark-color-on-primary);
+  --color-secondary: var(--dark-color-secondary);
+  --color-secondary-variant: var(--dark-color-secondary-variant);
+  --color-error: var(--dark-color-error);
+  --color-warning: var(--dark-color-warning);
+}
+
+:root.light {
+  --color-elevated: var(--light-color-elevated);
+  --color-surface-1: var(--light-color-surface-1);
+  --color-surface-2: var(--light-color-surface-2);
+  --color-surface-3: var(--light-color-surface-3);
+  --color-surface-3-50: var(--light-color-surface-3-50);
+  --color-on-surface: var(--light-color-on-surface);
+  --color-on-surface-disabled: var(--light-color-on-surface-disabled);
+  --color-primary: var(--light-color-primary);
+  --color-primary-variant: var(--light-color-primary-variant);
+  --color-on-primary: var(--light-color-on-primary);
+  --color-secondary: var(--light-color-secondary);
+  --color-secondary-variant: var(--light-color-secondary-variant);
+  --color-error: var(--light-color-error);
+  --color-warning: var(--light-color-warning);
 }
 
 #body {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-0 -0 10 10'%3E%3Cpath d='M 0 1 L 10 1 M 1 0 L 1 10' stroke='%23252530' stroke-dasharray='1' stroke-width='0.25' /%3E%3C/svg%3E");
-  background-size: 30px 30px;
+  background-color: var(--color-elevated);
+  background-image:
+    linear-gradient(to right, rgba(120, 138, 170, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 138, 170, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: center center;
+}
+
+:root.light #body {
+  background-image:
+    linear-gradient(to right, rgba(58, 76, 106, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(58, 76, 106, 0.08) 1px, transparent 1px);
 }
 
 /* Dark Scrollbar */
@@ -42,4 +137,20 @@
 }
 ::-webkit-scrollbar-corner {
   background: #1e1e1e;
+}
+
+:root.light ::-webkit-scrollbar-track {
+  background: #e5edf7;
+}
+
+:root.light ::-webkit-scrollbar-thumb {
+  background: #9eaec6;
+}
+
+:root.light ::-webkit-scrollbar-thumb:hover {
+  background: #7f8dad;
+}
+
+:root.light ::-webkit-scrollbar-corner {
+  background: #e5edf7;
 }
