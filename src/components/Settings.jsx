@@ -233,7 +233,7 @@ const Settings = () => {
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="flex flex-col gap-5 justify-center px-5 py-5 w-fit h-fit bg-primary-bg border border-border-bg rounded-3xl shadow-[0px_0px_50px_0px_#000000]/70 select-none"
+        className="flex flex-col gap-5 justify-center px-5 py-5 w-fit h-fit bg-surface-1 border border-border-bg rounded-3xl shadow-[0px_0px_50px_0px_#000000]/70 select-none"
       >
         <h2 className="font-github text-2xl text-on-surface font-medium text-center">
           State Options
@@ -307,7 +307,7 @@ const Settings = () => {
           </span>
         )}
 
-        <p className="min-h-[16px] max-w-[260px] text-[11px] text-red-400 font-github text-center select-none">
+        <p className="min-h-4 max-w-[260px] text-[11px] text-red-400 font-github text-center select-none">
           {hint}
         </p>
 
