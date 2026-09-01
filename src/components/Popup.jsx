@@ -89,7 +89,7 @@ function ChooseTransitionLabel() {
       hasInvalid(inputBitsArr, inputBits) ||
       (FsmType !== 'moore' && hasInvalid(outputBitsArr, outputBits))
     ) {
-      return 'Only the characters 0, 1 or x are allowed.'
+      return 'Only the characters 0, 1 or - are allowed.'
     }
     const parts = []
     if (!inputComplete) parts.push(`${inputBits} input bit${inputBits === 1 ? '' : 's'}`)
@@ -170,7 +170,7 @@ function ChooseTransitionLabel() {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
     if (!/^[01-]$/.test(ch)) {
-      setHint('Only the characters 0, 1 or x are allowed.')
+      setHint('Only the characters 0, 1 or - are allowed.')
       return
     }
     setInvalidAttempt(false)
@@ -237,8 +237,8 @@ function ChooseTransitionLabel() {
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       moveUp(kind, index)
-    } else if (event.key.length === 1 && !/^[01x]$/i.test(event.key)) {
-      // Only 0, 1 or x (don't-care)
+    } else if (event.key.length === 1 && !/^[01x-]$/i.test(event.key)) {
+      // Only 0, 1, x or - (don't-care)
       event.preventDefault()
     }
   }
