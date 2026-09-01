@@ -89,40 +89,9 @@ function mergeBitPatterns(patterns, fallbackLength) {
   }).join('')
 }
 
-function buildAllowedNodeBits(nodes, bitCount) {
-  const allowed = Array.from({ length: bitCount }, () => ({
-    zero: false,
-    one: false,
-  }))
-
-  nodes.forEach((node) => {
-    if (!node || node.id == null) return
-    const bits = Number(node.id).toString(2).padStart(bitCount, '0')
-    for (let index = 0; index < bitCount; index += 1) {
-      const bit = bits.charAt(index)
-      if (bit === '0') allowed[index].zero = true
-      if (bit === '1') allowed[index].one = true
-    }
-  })
-
-  return allowed
-}
-
-function normalizeToBinaryIdPattern(pattern, bitCount, nodes) {
-  const normalized = normalizePatternBits(pattern, bitCount, 'x', 'left')
-  const allowed = buildAllowedNodeBits(nodes, bitCount)
-
-  return Array.from({ length: bitCount }, (_, index) => {
-    const bit = normalized.charAt(index)
-    const allowZero = allowed[index].zero
-    const allowOne = allowed[index].one
-
-    if (allowZero && !allowOne) return '0'
-    if (allowOne && !allowZero) return '1'
-
-    if (bit === '0' || bit === '1') return bit
-    return 'x'
-  }).join('')
+// normalize the pattern width
+function normalizeToBinaryIdPattern(pattern, bitCount) {
+  return normalizePatternBits(pattern, bitCount, 'x', 'left')
 }
 
 /**
@@ -524,7 +493,6 @@ function normalizeTransitionForParent(transition) {
   const normalizedToBinaryId = normalizeToBinaryIdPattern(
     transition?.toBinaryId ?? 'x'.repeat(stateBits),
     stateBits,
-    allNodes,
   )
   const resolvedTargetId =
     typeof normalizedToBinaryId === 'string' && /^[01]+$/.test(normalizedToBinaryId)
@@ -572,7 +540,8 @@ export function extractFsmData() {
 
   const exportedTransitions = visibleTransitions
 
-  const exportedPreservedTransitions = fsmType === 'moore' ? [] : preservedUnresolvedTransitions
+  // Preserve unresolved patterns in Moore since they may be used to resolve the output of a transition
+  const exportedPreservedTransitions = preservedUnresolvedTransitions
 
   return {
     states: definedNodes.map((n) => ({
@@ -782,28 +751,31 @@ window.addEventListener('message', (event) => {
             targetsByResolved.set(key, arr)
           })
 
-          targetsByResolved.forEach((binaryList, resolvedKey) => {
-            // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
-            const merged = compressBinaryPatterns(binaryList)
-            merged.forEach((pattern) => {
-              renderableTransitions.push({
-                ...transition,
-                id: nextTransitionId++,
-                groupId: transition.groupId ?? transition.id ?? 0,
-                from: transition.from,
-                to: Number(resolvedKey),
-                toBinaryId: pattern,
-                input: baseLabelInput,
-                output: baseLabelOutput,
-                mealy_output: baseLabelOutput,
-                label: normalizedLabel,
-                isDraft: false,
-                hiddenDontCare: false,
+          // If any concrete targets resolve to a valid node, render them as separate transitions.
+          if (targetsByResolved.size > 0) {
+            targetsByResolved.forEach((binaryList, resolvedKey) => {
+              // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
+              const merged = compressBinaryPatterns(binaryList)
+              merged.forEach((pattern) => {
+                renderableTransitions.push({
+                  ...transition,
+                  id: nextTransitionId++,
+                  groupId: transition.groupId ?? transition.id ?? 0,
+                  from: transition.from,
+                  to: Number(resolvedKey),
+                  toBinaryId: pattern,
+                  input: baseLabelInput,
+                  output: baseLabelOutput,
+                  mealy_output: baseLabelOutput,
+                  label: normalizedLabel,
+                  isDraft: false,
+                  hiddenDontCare: false,
+                })
               })
             })
-          })
 
-          return
+            return
+          }
         }
       }
 
