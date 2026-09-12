@@ -10,7 +10,7 @@ const TopDock = () => {
   const [_EditorState, setEditorState] = useAtom(editor_state)
 
   // Constants
-  const iconFillColor = '#ffffff'
+  const iconFillColor = 'currentColor'
   const iconSize = 18
 
   const dockItems = [
@@ -48,8 +48,7 @@ const TopDock = () => {
               <button
                 key={idx}
                 onClick={item.onclick}
-                className={`flex gap-2 justify-center items-center font-github whitespace-nowrap bg-secondary-bg
-                            } text-base text-text-primary px-4 py-2 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-1 hover:scale-102 active:scale-90 transition-all ease-in-out`}
+                className={`flex gap-2 justify-center items-center font-github whitespace-nowrap bg-secondary-bg text-base text-on-surface px-4 py-2 border border-border-bg rounded-lg cursor-pointer hover:-translate-y-1 hover:scale-102 active:scale-90 transition-all ease-in-out`}
               >
                 {item.icon}
                 {item.name}
@@ -59,13 +58,13 @@ const TopDock = () => {
         <button
           type="button"
           onClick={() => setIsVisible(!isVisible)}
-          className={`flex justify-center items-center gap-1 absolute -bottom-10 font-github bg-primary-bg text-white text-sm font-bold px-3 py-2 border border-border-bg rounded-lg cursor-pointer`}
+          className={`flex justify-center items-center gap-1 absolute -bottom-10 font-github bg-primary-bg text-on-surface text-sm font-bold px-3 py-2 border border-border-bg rounded-lg cursor-pointer`}
         >
           FSM
           <ChevronDown
             className={`${isVisible && 'rotate-180'} transition-all ease-in-out duration-500`}
             size={24}
-            color="#ffffff"
+            color="currentColor"
           />
         </button>
       </div>

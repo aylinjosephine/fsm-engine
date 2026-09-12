@@ -302,6 +302,15 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           : labelFromParent
     }
 
+    const isLightMode =
+      typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
+    const themeStroke = isLightMode ? '#334155cc' : '#ffffffdd'
+    const themeLabel = isLightMode ? '#152033' : '#ffffff'
+    const normalizeStroke = (value) =>
+      value === '#ffffffdd' || value === '#334155cc' ? themeStroke : (value ?? themeStroke)
+    const normalizeLabelFill = (value) =>
+      value === '#ffffff' || value === '#152033' ? themeLabel : (value ?? themeLabel)
+
     const draft = existing
       ? {
           ...existing,
@@ -311,6 +320,9 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           from: t.from,
           to: t.to,
           hiddenDontCare: t.hiddenDontCare ?? existing.hiddenDontCare,
+          stroke: normalizeStroke(existing.stroke),
+          fill: normalizeStroke(existing.fill),
+          label_fill: normalizeLabelFill(existing.label_fill),
         }
       : {
           id: t.id,
@@ -320,14 +332,14 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           to: t.to,
           label: labelFromParent,
           hiddenDontCare: t.hiddenDontCare ?? false,
-          stroke: '#ffffffdd',
+          stroke: themeStroke,
           strokeWidth: 2,
-          fill: '#ffffffdd',
+          fill: themeStroke,
           points: [],
           tension: t.from === t.to ? 1 : 0.5,
           fontSize: 14,
           fontStyle: 'bold',
-          label_fill: '#ffffff',
+          label_fill: themeLabel,
           label_align: 'center',
         }
 
