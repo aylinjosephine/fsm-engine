@@ -280,7 +280,7 @@ export function handleTransitionSave(labels) {
         mealy_output: moore ? undefined : nextOutput,
         to: nextTo,
         toBinaryId: nextToBinaryId,
-        forceUnresolved: false,
+        forcePreserved: false,
         isDraft: false,
         hiddenDontCare: false,
         groupId: updated[hid].groupId ?? updated[hid].id,

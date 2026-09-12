@@ -176,8 +176,7 @@ function Page4() {
         )}
       </div>
       <p className="font-github text-white font-semibold text-base w-[90%] text-center">
-        Pro Tip: Use Alt+S for Add state, Alt+Z for Undo, Alt+R for Remove mode (with undo in the
-        background), Alt+Y for Redo, and Alt+A for Auto Layout.
+        Pro Tip: Use Alt+S for Add state, Alt+R for Remove mode, and Alt+A for Auto Layout.
       </p>
     </>
   )

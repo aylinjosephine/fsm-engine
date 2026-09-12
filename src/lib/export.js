@@ -3,18 +3,25 @@
 import { STATE_RADIUS, sanitizeStateName } from './constants'
 import { getTransitionPoints } from './editor'
 import {
+  active_transition,
+  current_selected,
   deleted_nodes,
+  editor_state,
   fsm_type,
   initial_state,
   input_bit_count,
   node_list,
   output_bit_count,
+  show_popup,
   stage_ref,
   store,
   transition_list,
+  transition_pairs,
 } from './stores'
 
 let updateFromState = false
+let importToken = 0
+let hasReceivedImport = false
 let unresolvedTransitions = []
 
 function getTrustedOrigin() {
@@ -543,6 +550,16 @@ export function extractFsmData() {
   // Preserve unresolved patterns in Moore since they may be used to resolve the output of a transition
   const exportedPreservedTransitions = preservedUnresolvedTransitions
 
+  console.log('[FSM] editor extractFsmData', {
+    states: definedNodes.map((n) => ({
+      id: n.id,
+      name: n.name,
+      moore_output: n.moore_output ?? '',
+    })),
+    visibleTransitions,
+    preservedUnresolvedTransitions,
+  })
+
   return {
     states: definedNodes.map((n) => ({
       id: n.id,
@@ -558,10 +575,12 @@ export function extractFsmData() {
   }
 }
 
-export function sendExportToMainState() {
-  if (updateFromState) return
+export function sendExportToMainState(isStoreSync = false) {
+  // Never export before the table has synced once: the editor starts empty and must not overwrite the table with its initial default state on page load.
+  if (!hasReceivedImport || (isStoreSync && updateFromState)) return
 
   const fsm = extractFsmData()
+  console.log('[FSM] editor sendExportToMainState', fsm)
   window.parent.postMessage({ action: 'export', fsm }, getTrustedOrigin())
 }
 
@@ -573,6 +592,8 @@ window.addEventListener('message', (event) => {
 
   const fsm = event.data.fsm
   if (!fsm) return
+  console.log('[FSM] editor received fsmimport', fsm)
+  hasReceivedImport = true
 
   const states = fsm.states ?? []
   const transitions = fsm.transitions ?? []
@@ -800,22 +821,27 @@ window.addEventListener('message', (event) => {
 
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
-  updateFromState = true
-  // Safety: if the RAF chain below fails for any reason, ensure
-  // updateFromState is reset after a maximum delay so future user
-  // actions (like removeState) aren't silently blocked.
-  const forceUnlockId = setTimeout(() => {
-    updateFromState = false
-  }, 2000)
+  console.log('[FSM] editor render plan', {
+    renderableTransitions,
+    unresolvedTransitions,
+  })
 
-  // Record existing node IDs before overwriting, so we can clean up
-  // orphaned Konva shapes for nodes that no longer exist after import.
+  updateFromState = true
+  const token = ++importToken
+  // If the store write below fails, reset the flag so future user actions (like removeState) aren't silently blocked.
+  const release = () => {
+    if (token !== importToken) return
+    updateFromState = false
+  }
+  // Force release after 2 seconds in case the store write below fails
+  const forceUnlockId = setTimeout(release, 2000)
+  let echoUnlockId = null
+
   const existingNodeIds = existingNodes.map((n) => n?.id)
-  // set nodes silently. The app renumbers IDs, so any previously deleted
-  // IDs are stale — clear the list to prevent overwriting valid nodes
-  // on the next "add" action.
+  // set nodes silently so the editor can render them without triggering an export back to the app
   store.set(deleted_nodes, [])
   store.set(node_list, nodeAtoms)
+  console.log('[FSM] editor rendered nodes', nodeAtoms)
 
   try {
     const nodesMap = buildNodeMap(nodeAtoms)
@@ -852,12 +878,14 @@ window.addEventListener('message', (event) => {
     // limited to the configured values.
     store.set(input_bit_count, Number(fsm.inputBitCount) || 1)
     store.set(output_bit_count, Number(fsm.outputBitCount) || 1)
-    // Apply transitions synchronously so the live-export echo fires even when
-    // the iframe is hidden and requestAnimationFrame is suspended (prevents the
-    // parent's suppress flag from lingering and swallowing the next edit).
+    // Apply transitions synchronously
     store.set(transition_list, transitionAtoms)
-    updateFromState = false
-    clearTimeout(forceUnlockId)
+    console.log('[FSM] editor rendered transitions', transitionAtoms)
+    // Release after the live-export debounce period to avoid echoing the imported state back to the app
+    echoUnlockId = setTimeout(() => {
+      release()
+      echoUnlockId = null
+    }, 200)
     // Cosmetic Konva cleanup/geometry after React commits; safe to skip when RAF paused.
     requestAnimationFrame(() => {
       removeRenderedTransitions(removedTransitionIds)
@@ -866,15 +894,38 @@ window.addEventListener('message', (event) => {
       syncRenderedTransitions(recalculatedTransitions)
     })
   } catch (error) {
-    updateFromState = false
+    release()
     clearTimeout(forceUnlockId)
+    if (echoUnlockId) clearTimeout(echoUnlockId)
     throw error
   }
 })
 
 export function clearFsmFromParent() {
+  hasReceivedImport = false
   store.set(node_list, [])
   store.set(transition_list, [])
   store.set(initial_state, null)
+  store.set(fsm_type, 'mealy')
+  store.set(input_bit_count, 1)
+  store.set(output_bit_count, 1)
+  store.set(show_popup, false)
+  store.set(active_transition, null)
+  store.set(editor_state, null)
+  store.set(current_selected, null)
+  store.set(transition_pairs, null)
   unresolvedTransitions = []
 }
+
+// Reset the editor state when the parent requests it
+window.addEventListener('message', (event) => {
+  if (!isTrustedParentMessage(event)) return
+  if (event.data?.action !== 'fsm-reset') return
+  console.log('[FSM] editor received fsm-reset')
+  updateFromState = true
+  clearFsmFromParent()
+  const token = ++importToken
+  setTimeout(() => {
+    if (token === importToken) updateFromState = false
+  }, 200)
+})

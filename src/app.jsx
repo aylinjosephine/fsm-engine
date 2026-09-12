@@ -24,7 +24,7 @@ export function App() {
   useEffect(() => {
     if (popupVisible) return
     const timeout = setTimeout(() => {
-      sendExportToMainState()
+      sendExportToMainState(true)
     }, 100)
 
     return () => clearTimeout(timeout)

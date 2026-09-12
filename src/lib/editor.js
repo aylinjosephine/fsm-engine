@@ -8,7 +8,7 @@ import dagre from 'dagre'
 import Konva from 'konva'
 import { STATE_RADIUS } from './constants'
 import { sendExportToMainState } from './export'
-import { addToHistory, clearHistory, redo, undo } from './history'
+import { addToHistory, clearHistory } from './history'
 import {
   active_transition,
   alert,
@@ -488,21 +488,8 @@ export function handleShortCuts(key) {
     return
   }
 
-  if (key === 'z' || key === 'Z') {
-    store.set(editor_state, () => 'Undo')
-    undo(getTransitionPoints)
-    return
-  }
-
   if (key === 'r' || key === 'R') {
     store.set(editor_state, () => 'Remove')
-    undo(getTransitionPoints)
-    return
-  }
-
-  if (key === 'y' || key === 'Y') {
-    store.set(editor_state, () => 'Redo')
-    redo(getTransitionPoints)
     return
   }
 }
