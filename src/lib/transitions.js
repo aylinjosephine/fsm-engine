@@ -216,13 +216,18 @@ export function handleTransitionSave(labels) {
   const allTransitions = store.get(transition_list) ?? []
   const handleHiddenDontCareTransitions = true
 
+  // check whether any of the new labels overlap with existing transitions from the same source node
+  const nextInputs = stringLabels.map((label) => getInputFromLabel(label))
+  const overlapsAnyLabel = (pattern) =>
+    nextInputs.some((nextInput) => patternsOverlap(nextInput, pattern))
+
   const overlappingHiddenIds = handleHiddenDontCareTransitions
     ? allTransitions
         .map((transition, index) =>
           transition &&
           transition.from === src_node &&
           transition.hiddenDontCare &&
-          patternsOverlap(nextInput, getInputFromLabel(transition.label))
+          overlapsAnyLabel(getInputFromLabel(transition.label))
             ? index
             : -1,
         )
@@ -235,7 +240,7 @@ export function handleTransitionSave(labels) {
     if (getTransitionGroupId(transition) === groupId) return false
     // ignore hidden don't-care transitions for the purpose of duplication checks
     if (handleHiddenDontCareTransitions && transition.hiddenDontCare) return false
-    return patternsOverlap(nextInput, getInputFromLabel(transition.label))
+    return overlapsAnyLabel(getInputFromLabel(transition.label))
   })
 
   if (duplicateExists) {
