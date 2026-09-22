@@ -1,5 +1,9 @@
 # FSM Engine
 
+This project is based on fsm-engine by Karthik Saiharsh.
+To use it as submodule, it has been modified by the LogicEasy team from the university of Lübeck.
+The project remains licensed under the GNU General Public License v3.0.
+
 ## FSM Engine as Git Submodule
 
 Since we needed an editor with comfortable UI, we included the FSM Engine of karthik-saiharsh (Github: [FSM Engine](https://github.com/karthik-saiharsh/fsm-engine) in our project.
