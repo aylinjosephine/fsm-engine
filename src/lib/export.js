@@ -22,7 +22,9 @@ import {
 let updateFromState = false
 let importToken = 0
 let hasReceivedImport = false
-let unresolvedTransitions = []
+
+// edges that are preserved for export but not rendered in the editor (e.g. hidden don't-care transitions)
+let preservedTransitions = []
 
 function getTrustedOrigin() {
   return window.location.origin
@@ -547,7 +549,7 @@ export function extractFsmData() {
   const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
   const visibleTransitionIds = new Set(visibleTransitions.map((t) => t.id))
   const visibleTransitionKeys = new Set(visibleTransitions.map((t) => `${t.from}:${t.input}`))
-  const preservedUnresolvedTransitions = unresolvedTransitions
+  const preservedForExport = preservedTransitions
     .map((t) => normalizeTransitionForParent(t))
     .filter((t) => {
       if (visibleTransitionIds.has(t.id)) return false
@@ -557,11 +559,6 @@ export function extractFsmData() {
       return definedNodes.some((node) => node?.id === t.to)
     })
 
-  const exportedTransitions = visibleTransitions
-
-  // Preserve unresolved patterns in Moore since they may be used to resolve the output of a transition
-  const exportedPreservedTransitions = preservedUnresolvedTransitions
-
   console.log('[FSM] editor extractFsmData', {
     states: definedNodes.map((n) => ({
       id: n.id,
@@ -569,7 +566,7 @@ export function extractFsmData() {
       moore_output: n.moore_output ?? '',
     })),
     visibleTransitions,
-    preservedUnresolvedTransitions,
+    preservedForExport,
   })
 
   return {
@@ -582,7 +579,7 @@ export function extractFsmData() {
       y: n.y,
       moore_output: n.moore_output ?? '',
     })),
-    transitions: [...exportedTransitions, ...exportedPreservedTransitions],
+    transitions: [...visibleTransitions, ...preservedForExport],
     fsmType,
   }
 }
@@ -673,7 +670,7 @@ window.addEventListener('message', (event) => {
 
   const existingTransitions = store.get(transition_list) ?? []
   const renderableTransitions = []
-  unresolvedTransitions = []
+  preservedTransitions = []
 
   if (false && isMoore) {
   } else {
@@ -737,10 +734,10 @@ window.addEventListener('message', (event) => {
         'x',
         'left',
       )
+      // Hidden means "carries no next-state or output information"; the input bits do not matter
       const isHiddenDontCare = isMoore
-        ? /^x+$/.test(baseLabelInput) && /^x+$/.test(targetPattern)
-        : /^x+$/.test(baseLabelInput) &&
-          /^x+$/.test(targetPattern) &&
+        ? /^x+$/.test(targetPattern)
+        : /^x+$/.test(targetPattern) &&
           typeof baseLabelOutput === 'string' &&
           baseLabelOutput.length > 0 &&
           /^x+$/.test(baseLabelOutput)
@@ -761,13 +758,8 @@ window.addEventListener('message', (event) => {
         return
       }
 
-      // All-x target = unassigned next state: don't draw arrows to every node,
-      // keep it unresolved so it round-trips.
-      if (/^x+$/.test(targetPattern)) {
-        unresolvedTransitions.push(transition)
-        return
-      }
-
+      // a transition with a don't-care target pattern may resolve to multiple concrete targets
+      // therefore we render each as a separate transition if possible
       const concreteTargets = expandDontCares(targetPattern)
 
       if (concreteTargets.length > 0) {
@@ -827,7 +819,7 @@ window.addEventListener('message', (event) => {
         }
       }
 
-      unresolvedTransitions.push(transition)
+      preservedTransitions.push(transition)
     })
   }
 
@@ -835,7 +827,7 @@ window.addEventListener('message', (event) => {
 
   console.log('[FSM] editor render plan', {
     renderableTransitions,
-    unresolvedTransitions,
+    preservedTransitions,
   })
 
   updateFromState = true
@@ -926,7 +918,7 @@ export function clearFsmFromParent() {
   store.set(editor_state, null)
   store.set(current_selected, null)
   store.set(transition_pairs, null)
-  unresolvedTransitions = []
+  preservedTransitions = []
 }
 
 // Reset the editor state when the parent requests it
