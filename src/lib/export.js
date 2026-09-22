@@ -559,16 +559,6 @@ export function extractFsmData() {
       return definedNodes.some((node) => node?.id === t.to)
     })
 
-  console.log('[FSM] editor extractFsmData', {
-    states: definedNodes.map((n) => ({
-      id: n.id,
-      name: n.name,
-      moore_output: n.moore_output ?? '',
-    })),
-    visibleTransitions,
-    preservedForExport,
-  })
-
   return {
     states: definedNodes.map((n) => ({
       id: n.id,
@@ -589,7 +579,6 @@ export function sendExportToMainState(isStoreSync = false) {
   if (!hasReceivedImport || (isStoreSync && updateFromState)) return
 
   const fsm = extractFsmData()
-  console.log('[FSM] editor sendExportToMainState', fsm)
   window.parent.postMessage({ action: 'export', fsm }, getTrustedOrigin())
 }
 
@@ -601,7 +590,6 @@ window.addEventListener('message', (event) => {
 
   const fsm = event.data.fsm
   if (!fsm) return
-  console.log('[FSM] editor received fsmimport', fsm)
   hasReceivedImport = true
 
   const states = fsm.states ?? []
@@ -825,11 +813,6 @@ window.addEventListener('message', (event) => {
 
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
-  console.log('[FSM] editor render plan', {
-    renderableTransitions,
-    preservedTransitions,
-  })
-
   updateFromState = true
   const token = ++importToken
   // If the store write below fails, reset the flag so future user actions (like removeState) aren't silently blocked.
@@ -845,7 +828,6 @@ window.addEventListener('message', (event) => {
   // set nodes silently so the editor can render them without triggering an export back to the app
   store.set(deleted_nodes, [])
   store.set(node_list, nodeAtoms)
-  console.log('[FSM] editor rendered nodes', nodeAtoms)
 
   try {
     const nodesMap = buildNodeMap(nodeAtoms)
@@ -884,7 +866,6 @@ window.addEventListener('message', (event) => {
     store.set(output_bit_count, Number(fsm.outputBitCount) || 1)
     // Apply transitions synchronously
     store.set(transition_list, transitionAtoms)
-    console.log('[FSM] editor rendered transitions', transitionAtoms)
     // Release after the live-export debounce period to avoid echoing the imported state back to the app
     echoUnlockId = setTimeout(() => {
       release()
@@ -925,7 +906,6 @@ export function clearFsmFromParent() {
 window.addEventListener('message', (event) => {
   if (!isTrustedParentMessage(event)) return
   if (event.data?.action !== 'fsm-reset') return
-  console.log('[FSM] editor received fsm-reset')
   updateFromState = true
   clearFsmFromParent()
   const token = ++importToken
