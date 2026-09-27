@@ -270,11 +270,14 @@ export function handleTransitionSave(labels) {
     const updated = [...existing]
     overlappingHiddenIds.forEach((hid) => {
       if (!updated[hid]) return
-      const nextTo = Number.isFinite(activeTransition.to) ? activeTransition.to : updated[hid].to
+      const hasConcreteTarget = Number.isFinite(activeTransition.to) && activeTransition.to >= 0
+      const nextTo = hasConcreteTarget ? activeTransition.to : updated[hid].to
       const nextToBinaryId =
         typeof activeTransition.toBinaryId === 'string'
           ? activeTransition.toBinaryId
-          : updated[hid].toBinaryId
+          : hasConcreteTarget
+            ? undefined
+            : updated[hid].toBinaryId
 
       updated[hid] = {
         ...updated[hid],

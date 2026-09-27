@@ -169,22 +169,6 @@ const Editor = () => {
 
                     {/* If state is initial, draw an incoming arrow */}
                     {/* arrow is now rendered top-level for drag support */}
-
-                    {/* If state is final, draw an extra outer circle */}
-                    {/*circle.type.final && (
-                      <Circle
-                        x={0}
-                        y={0}
-                        radius={2 * circle.name.length + circle.radius + 5}
-                        fill={'transparent'}
-                        strokeWidth={3}
-                        stroke={
-                          circle.fill === '#ffffff80' || circle.fill === '#ffffff'
-                            ? '#4a6fae88'
-                            : circle.fill
-                        }
-                      />
-                    )*/}
                   </Group>
                 ),
             )

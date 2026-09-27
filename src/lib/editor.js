@@ -212,10 +212,6 @@ export function HandleEditorClick(e) {
     if (circle_id !== nodes_copy.length) {
       nodes_copy[circle_id] = circle
     } else {
-      if (circle_id === 0) {
-        // This is the first state and so the initial one
-        if (store.get(initial_state) == null) store.set(initial_state, (_) => 0)
-      }
       nodes_copy.push(circle)
     }
 
@@ -470,9 +466,6 @@ export function handleShortCuts(key) {
     if (circleId !== nodesCopy.length) {
       nodesCopy[circleId] = circle
     } else {
-      if (circleId === 0 && store.get(initial_state) == null) {
-        store.set(initial_state, () => 0)
-      }
       nodesCopy.push(circle)
     }
 
@@ -511,10 +504,10 @@ function makeCircle(position, id) {
     name: `q${id}`,
     fill: '#4a6fae88',
     radius: STATE_RADIUS,
+    // The initial state is only chosen explicitly in the state options
     type: {
-      initial: id === 0,
-      intermediate: id !== 0,
-      final: false,
+      initial: false,
+      intermediate: true,
     },
     moore_output: isMoore ? 'x' : '',
     transitions: [], // This will have the object {from: num,to: num, label: string}

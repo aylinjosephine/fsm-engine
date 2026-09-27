@@ -25,7 +25,6 @@ export const node_list = atom([])
   type: {
     initial: boolean,
     intermediate: boolean,
-    final: boolean,
   },
   moore_output: string, // Moore output for this state (used if fsm_type === 'moore')
   transitions: Array<{

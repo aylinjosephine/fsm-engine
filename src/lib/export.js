@@ -564,7 +564,7 @@ export function extractFsmData() {
       id: n.id,
       name: n.name,
       initial: !!n.type?.initial,
-      final: !!n.type?.final,
+      color: n.fill,
       x: n.x,
       y: n.y,
       moore_output: n.moore_output ?? '',
@@ -608,12 +608,15 @@ window.addEventListener('message', (event) => {
     const moore_output = s.moore_output ?? existing?.moore_output ?? ''
     const x = typeof s.x === 'number' ? s.x : existing?.x
     const y = typeof s.y === 'number' ? s.y : existing?.y
+    const fill =
+      typeof s.color === 'string' && s.color !== '' ? s.color : (existing?.fill ?? '#4a6fae88')
 
     if (existing) {
       // auto layout only on new states
       nodeAtoms[s.id] = {
         ...existing,
         name: sanitizeStateName(s.name) || existing.name,
+        fill,
         x: x ?? existing.x,
         y: y ?? existing.y,
         moore_output,
@@ -621,7 +624,6 @@ window.addEventListener('message', (event) => {
         type: {
           ...existing.type,
           initial: !!s.initial,
-          final: !!s.final,
         },
       }
       return
@@ -642,12 +644,11 @@ window.addEventListener('message', (event) => {
       x: x ?? baseX + col * dx,
       y: y ?? baseY + row * dy,
       radius: STATE_RADIUS,
-      fill: '#4a6fae88',
+      fill,
       moore_output,
       type: {
         initial: !!s.initial,
         intermediate: !s.initial,
-        final: !!s.final,
       },
       transitions: [],
     }
