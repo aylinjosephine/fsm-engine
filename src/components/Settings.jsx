@@ -55,31 +55,63 @@ const Settings = () => {
     }
   }, [editorState])
 
+  // Escape cancels the popup, Enter submits it, so both keys always act on the current draft
   useEffect(() => {
     if (editorState !== 'settings') return
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault()
         handleCancel()
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        handleSave()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editorState])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    editorState,
+    currentSelected,
+    stateName,
+    stateColor,
+    isInitial,
+    mooreBits,
+    fsmType,
+    outputBitCount,
+  ])
 
   // Get the existing values of the State properties
   function setDefaultValues() {
-    const name = nodeList[currentSelected].name
-    const color = nodeList[currentSelected].fill.substr(0, 7)
-    const type = nodeList[currentSelected].type
-    const mooreOutput = nodeList[currentSelected].moore_output ?? ''
+    const node = nodeList[currentSelected]
+    if (!node) return
 
-    setStateName(name)
-    setMooreBits(toBits(mooreOutput, outputBitCount))
+    setStateName(node.name ?? '')
+    setMooreBits(toBits(node.moore_output ?? '', outputBitCount))
     setInvalidAttempt(false)
     setHint('')
-    setStateColor(color)
-    setIsInitial(!!type?.initial)
+    setStateColor(String(node.fill ?? '').substr(0, 7))
+    setIsInitial(!!node.type?.initial)
+  }
+
+  // A state name is invalid when it is empty or already used by another state
+  function isNameInvalid() {
+    const name = sanitizeStateName(stateName)
+    if (!name.trim()) return true
+    const currentName = String(nodeList[currentSelected]?.name ?? '')
+    return name !== currentName && isDuplicateName(name)
+  }
+
+  function isDuplicateName(name) {
+    const normalized = String(name).trim().toLowerCase()
+    return nodeList.some(
+      (node) =>
+        node &&
+        node.id !== currentSelected &&
+        String(node.name ?? '')
+          .trim()
+          .toLowerCase() === normalized,
+    )
   }
 
   // Sanitize the state name (no HTML/script injection)
@@ -133,10 +165,7 @@ const Settings = () => {
   }
 
   function handleMooreKeyDown(index, event) {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      handleSave()
-    } else if (event.key === 'Backspace') {
+    if (event.key === 'Backspace') {
       event.preventDefault()
       if (mooreBits[index]) {
         setMooreBits((prev) => {
@@ -181,19 +210,9 @@ const Settings = () => {
     return `Please fill in ${outputBitCount} output bit${outputBitCount === 1 ? '' : 's'}.`
   }
 
+  // same validation as the Save button for enter
   function handleBackdropClick() {
-    if (!sanitizeStateName(stateName).trim()) {
-      setInvalidAttempt(true)
-      setHint('Please enter a state name.')
-      return
-    }
-    const outputOk = fsmType === 'moore' ? isComplete(mooreBits, outputBitCount) : true
-    if (!outputOk) {
-      setInvalidAttempt(true)
-      setHint(getValidationHint())
-      return
-    }
-    setEditorState(null)
+    handleSave()
   }
 
   function handleSave() {
@@ -201,6 +220,12 @@ const Settings = () => {
     if (!name.trim()) {
       setInvalidAttempt(true)
       setHint('Please enter a state name.')
+      return
+    }
+    const currentName = String(nodeList[currentSelected]?.name ?? '')
+    if (name !== currentName && isDuplicateName(name)) {
+      setInvalidAttempt(true)
+      setHint('A state with this name already exists.')
       return
     }
     const outputOk = fsmType === 'moore' ? isComplete(mooreBits, outputBitCount) : true
@@ -215,14 +240,16 @@ const Settings = () => {
     HandleSaveSettings(
       name,
       stateColor,
-      { initial: isInitial, intermediate: !isInitial, final: false },
+      { initial: isInitial, intermediate: !isInitial },
       fsmType === 'moore' ? normalizeOutputBits(mooreOutputValue) : '',
     )
   }
 
+  // Reset the draft (only) when the popup opens or another state is selected.
   useEffect(() => {
-    if (currentSelected) setDefaultValues()
-  }, [currentSelected, setDefaultValues])
+    if (editorState !== 'settings' || currentSelected == null) return
+    setDefaultValues()
+  }, [editorState, currentSelected])
 
   return (
     <div
@@ -246,9 +273,7 @@ const Settings = () => {
             value={stateName}
             maxLength={MAX_STATE_NAME_LENGTH}
             className={`px-1 py-2 text-sm h-9 w-full font-medium text-on-surface font-github rounded-lg border outline-none transition-all ease-in-out ${
-              invalidAttempt && !sanitizeStateName(stateName).trim()
-                ? 'border-red-500'
-                : 'border-border-bg'
+              invalidAttempt && isNameInvalid() ? 'border-red-500' : 'border-border-bg'
             } hover:border-surface-3 focus:border-primary`}
             type="text"
             onChange={(e) => handleNameChange(e.target.value)}

@@ -26,75 +26,71 @@ function sanitizeMooreOutput(value) {
   return padded.length > 0 ? padded : 'x'
 }
 
+// Resolve the fill color for a node, preserving the alpha channel if the base color is unchanged.
+function resolveFill(currentFill, newColor) {
+  const current = String(currentFill ?? '')
+  const nextBase = String(newColor ?? '').toLowerCase()
+  if (!/^#[0-9a-f]{6}$/.test(nextBase) || nextBase === current.slice(0, 7).toLowerCase()) {
+    return current
+  }
+  return `${nextBase}${current.slice(7) || '80'}`
+}
+
 export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = '') {
-  const nodeList = store.get(node_list)
+  const nodes = store.get(node_list) ?? []
   const id = store.get(current_selected)
+  const node = nodes[id]
+  if (!node) {
+    store.set(editor_state, () => null)
+    return
+  }
+
   const isMoore = store.get(fsm_type) === 'moore'
+  const nextInitial = !!newType?.initial
+  const nextFill = resolveFill(node.fill, newColor)
+  const nextOutput = isMoore ? sanitizeMooreOutput(newMooreOutput) : ''
 
-  const name = nodeList[id].name
-  const color = nodeList[id].fill
-  const type = nodeList[id].type
-  const currentMooreOutput = nodeList[id].moore_output ?? ''
-
-  let changed = false
-
-  if (newName !== name) {
-    store.set(node_list, (prev) => {
-      prev[id].name = newName
-      return prev
-    })
-    changed = true
-  }
-
-  if (newColor !== color.substr(0, 7)) {
-    store.set(node_list, (prev) => {
-      prev[id].fill = `${newColor}80`
-      return prev
-    })
-    changed = true
-  }
-
-  if (JSON.stringify(newType) !== JSON.stringify(type)) {
-    if (newType.initial) {
-      if (store.get(initial_state) == null) {
-        store.set(initial_state, () => id)
-      } else {
-        const prev_initial = store.get(initial_state)
-        store.set(node_list, (prev) => {
-          prev[prev_initial].type.initial = false
-          return prev
-        })
-        store.set(initial_state, () => id)
-      }
-    }
-    store.set(node_list, (prev) => {
-      prev[id].type = newType
-      return prev
-    })
-    changed = true
-  }
-
-  if (isMoore) {
-    const resolvedOutput = sanitizeMooreOutput(newMooreOutput)
-    if (resolvedOutput !== currentMooreOutput) {
-      store.set(node_list, (prev) => {
-        prev[id].moore_output = resolvedOutput
-        return prev
-      })
-      changed = true
-    }
-  } else if (currentMooreOutput !== '') {
-    store.set(node_list, (prev) => {
-      prev[id].moore_output = ''
-      return prev
-    })
-    changed = true
-  }
+  const changed =
+    newName !== node.name ||
+    nextFill !== node.fill ||
+    nextInitial !== !!node.type?.initial ||
+    nextOutput !== (node.moore_output ?? '')
 
   store.set(editor_state, () => null)
+  if (!changed) return
 
-  if (changed) {
-    addToHistory()
-    sendExportToMainState()
+  const previousInitialId = store.get(initial_state)
+  const nextNodes = [...nodes]
+
+  // The initial flag only adds the arrow and an fsm without is is valid
+  if (
+    nextInitial &&
+    previousInitialId != null &&
+    previousInitialId !== id &&
+    nextNodes[previousInitialId]
+  ) {
+    nextNodes[previousInitialId] = {
+      ...nextNodes[previousInitialId],
+      type: { ...nextNodes[previousInitialId].type, initial: false, intermediate: true },
+    }
   }
+
+  // Always write a fresh node object, an in-place mutation would not notify the UI
+  nextNodes[id] = {
+    ...node,
+    name: newName,
+    fill: nextFill,
+    type: { ...node.type, initial: nextInitial, intermediate: !nextInitial },
+    moore_output: nextOutput,
+  }
+  store.set(node_list, () => nextNodes)
+
+  if (nextInitial) {
+    store.set(initial_state, () => id)
+  } else if (previousInitialId === id) {
+    store.set(initial_state, () => null)
+  }
+
+  addToHistory()
+  sendExportToMainState()
 }
