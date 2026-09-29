@@ -56,7 +56,7 @@ function resolveNodeIdByBinary(nodes, binaryId, nodeBitCount) {
   return match?.id ?? -1
 }
 
-function expandDontCares(pattern) {
+export function expandDontCares(pattern) {
   const normalized = String(pattern ?? '').replace(/-/g, 'x')
   if (!normalized) return []
 
@@ -200,7 +200,9 @@ function collapseTransitionsForExport(transitions, definedNodes) {
   const groups = new Map()
 
   transitions.forEach((transition) => {
-    const key = String(getTransitionGroupKey(transition))
+    // Group ids can repeat after import/export round trips, so the source state
+    // and the label are part of the key: different rows must never be merged.
+    const key = `${transition.from}|${String(transition.label ?? '')}|${getTransitionGroupKey(transition)}`
     const bucket = groups.get(key) ?? []
     bucket.push(transition)
     groups.set(key, bucket)
@@ -287,11 +289,11 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
   const isMoore = store.get(fsm_type) === 'moore'
 
   transitions.forEach((t) => {
-    let existing =
-      existingTransitions[t.id] ?? existingTransitions.find((tr) => tr && tr.id === t.id)
-    if (!existing && t.groupId != null) {
-      existing = existingTransitions.find((tr) => tr && (tr.groupId ?? tr.id) === t.groupId)
-    }
+    // incoming ids are reassigned on every import
+    const existing =
+      t.groupId != null
+        ? existingTransitions.find((tr) => tr && (tr.groupId ?? tr.id) === t.groupId)
+        : undefined
     const output = t.output ?? t.mealy_output ?? ''
     const groupId = t.groupId ?? existing?.groupId ?? t.id
 
@@ -316,12 +318,15 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
     const draft = existing
       ? {
           ...existing,
+          id: t.id,
           groupId,
           toBinaryId: t.toBinaryId ?? existing.toBinaryId,
           label: labelFromParent,
           from: t.from,
           to: t.to,
-          hiddenDontCare: t.hiddenDontCare ?? existing.hiddenDontCare,
+          hiddenDontCare: !!t.hiddenDontCare,
+          // imported transitions are never drafts
+          isDraft: false,
           stroke: normalizeStroke(existing.stroke),
           fill: normalizeStroke(existing.fill),
           label_fill: normalizeLabelFill(existing.label_fill),
@@ -333,7 +338,8 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           from: t.from,
           to: t.to,
           label: labelFromParent,
-          hiddenDontCare: t.hiddenDontCare ?? false,
+          hiddenDontCare: !!t.hiddenDontCare,
+          isDraft: false,
           stroke: themeStroke,
           strokeWidth: 2,
           fill: themeStroke,

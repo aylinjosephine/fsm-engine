@@ -588,16 +588,13 @@ function getNextTransitionId() {
 
   transitions.forEach((transition, index) => {
     if (!transition) return
-    maxId = Math.max(maxId, transition.id ?? index)
+    maxId = Math.max(maxId, transition.id ?? index, transition.groupId ?? -1)
   })
 
   return maxId + 1
 }
 
-// This function returns the points for the
-// state transition arrow between states id1 and id2
-// Optional: nodesMap / transitionsOverride can be passed to compute points against
-// incoming state during imports instead of the currently committed store.
+// calculate the points for a transition between two states
 export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transitionsOverride = null) {
   const nodes = nodesMap || store.get(node_list)
   const startNode = nodes[id1]

@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentThemeMode } from '../lib/theme.js'
 import {
   active_transition,
@@ -11,11 +11,7 @@ import {
   store,
   transition_list,
 } from '../lib/stores'
-import {
-  findOverlappingTransition,
-  handleTransitionSave,
-  removeTransitionById,
-} from '../lib/transitions'
+import { getClusterMergeInfo, handleTransitionSave, removeTransitionById } from '../lib/transitions'
 
 const Popup = () => {
   return <ChooseTransitionLabel />
@@ -251,6 +247,31 @@ function ChooseTransitionLabel() {
     store.set(active_transition, null)
   }
 
+  // check whether the targets can share one don't-care cluster or the table cannot show them both
+  const mergeInfo = useMemo(() => {
+    if (!showPopup) return null
+    const inputComplete = isComplete(inputBitsArr, inputBits)
+    const outputComplete = FsmType === 'moore' || isComplete(outputBitsArr, outputBits)
+    if (!inputComplete || !outputComplete) return null
+    return getClusterMergeInfo({
+      input: inputBitsArr.join('').replace(/-/g, 'x'),
+      output: FsmType === 'moore' ? '' : outputBitsArr.join('').replace(/-/g, 'x'),
+    })
+  }, [
+    showPopup,
+    inputBitsArr,
+    outputBitsArr,
+    inputBits,
+    outputBits,
+    FsmType,
+    TransitionList,
+    ActiveTransition,
+  ])
+
+  const duplicateBlocked = Boolean(mergeInfo && !mergeInfo.mergeable)
+  const hintText = mergeInfo ? mergeInfo.message : hint
+  const hintIsInfo = Boolean(mergeInfo?.mergeable)
+
   function handleBackdropClick() {
     if (!showPopup) return
     const inputOk = isComplete(inputBitsArr, inputBits)
@@ -261,10 +282,8 @@ function ChooseTransitionLabel() {
       setHint(getValidationHint())
       return
     }
-    const persistedInput = inputBitsArr.join('').replace(/-/g, 'x')
-    if (findOverlappingTransition(persistedInput)) {
-      setInvalidAttempt(true)
-      setHint('A transition with this input pattern already exists for this state.')
+    if (duplicateBlocked) {
+      setHint('')
       return
     }
     if (TransitionList[ActiveTransition]?.isDraft) {
@@ -287,17 +306,17 @@ function ChooseTransitionLabel() {
       return
     }
 
+    // A target that no don't-care pattern can cover is rejected
+    if (duplicateBlocked) {
+      setHint('')
+      return
+    }
+
     setInvalidAttempt(false)
     setHint('')
     // Persist using 'x' as internal don't-care, convert '-' back to 'x'
     const persistedInput = input.replace(/-/g, 'x')
     const persistedOutput = output.replace(/-/g, 'x')
-    // do not allow saving a transition that would overlap with an existing transition for the same state
-    if (findOverlappingTransition(persistedInput)) {
-      setInvalidAttempt(true)
-      setHint('A transition with this input pattern already exists for this state.')
-      return
-    }
     handleTransitionSave(
       FsmType === 'moore' ? [persistedInput] : [`${persistedInput}/${persistedOutput}`],
     )
@@ -352,8 +371,12 @@ function ChooseTransitionLabel() {
         {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
         {FsmType !== 'moore' &&
           renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
-        <p className="min-h-[16px] max-w-[260px] text-[11px] text-red-400 font-github -mt-1 mb-2 text-center select-none">
-          {hint}
+        <p
+          className={`min-h-[16px] max-w-[260px] text-[11px] font-github -mt-1 mb-2 text-center select-none ${
+            hintIsInfo ? 'text-amber-400' : 'text-red-400'
+          }`}
+        >
+          {hintText}
         </p>
         <div className="flex gap-3 mt-1">
           <button

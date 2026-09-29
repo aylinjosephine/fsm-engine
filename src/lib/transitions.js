@@ -1,5 +1,5 @@
 import { getLabelPosition, getTransitionPoints } from './editor'
-import { sendExportToMainState } from './export'
+import { expandDontCares, sendExportToMainState } from './export'
 import { addToHistory } from './history'
 import {
   active_transition,
@@ -68,6 +68,96 @@ function isExactBitLabel(label, inputBits, outputBits) {
 
 function isMooreMode() {
   return store.get(fsm_type) === 'moore'
+}
+
+// Calculates bit width of a next-state pattern (derived from the highest state id)
+function getNodeBitCount(nodes) {
+  const maxNodeId = (nodes ?? []).reduce((max, node) => Math.max(max, Number(node?.id ?? -1)), -1)
+  const totalStates = Math.max(1, maxNodeId + 1)
+  return totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
+}
+
+function toBinaryPattern(nodeId, bitCount) {
+  return Number(nodeId).toString(2).padStart(bitCount, '0')
+}
+
+function padBinaryPattern(pattern, bitCount) {
+  const source = String(pattern ?? '').replace(/-/g, 'x')
+  if (source.length >= bitCount) return source.slice(-bitCount)
+  return source.padStart(bitCount, /x/.test(source) ? 'x' : '0')
+}
+
+// Shows a stored pattern (0/1/x) with the don't-care character used in the UI
+function showPattern(pattern) {
+  return String(pattern ?? '').replace(/x/g, '-')
+}
+
+// Concrete next-state patterns of a transition group (a cluster has one entry per target)
+function getGroupTargetPatterns(transitions, groupIds, bitCount) {
+  const patterns = []
+  groupIds.forEach((transitionId) => {
+    const transition = transitions[transitionId]
+    if (!transition) return
+    const pattern = String(transition.toBinaryId ?? '')
+    if (/^[01]+$/.test(pattern)) {
+      patterns.push(padBinaryPattern(pattern, bitCount))
+      return
+    }
+    if (Number.isFinite(transition.to) && transition.to >= 0) {
+      patterns.push(toBinaryPattern(transition.to, bitCount))
+    }
+  })
+  return Array.from(new Set(patterns))
+}
+
+// Smallest pattern covering all targets, x = don't-care. Returns '' if no targets.
+function getEnclosingPattern(patterns) {
+  if (!patterns.length) return ''
+  const width = Math.max(...patterns.map((pattern) => pattern.length))
+  const padded = patterns.map((pattern) => padBinaryPattern(pattern, width))
+  return Array.from({ length: width }, (_, index) => {
+    const bit = padded[0].charAt(index)
+    return padded.every((pattern) => pattern.charAt(index) === bit) ? bit : 'x'
+  }).join('')
+}
+
+// Targets form one don't-care pattern only when they cover its cube completely
+function getExactCubePattern(patterns) {
+  const cube = getEnclosingPattern(patterns)
+  if (!cube) return null
+  const variants = 2 ** (cube.match(/x/g)?.length ?? 0)
+  return variants === patterns.length ? cube : null
+}
+
+function getNodeNamesForPatterns(nodes, patterns, bitCount) {
+  return patterns.map((pattern) => {
+    const node = (nodes ?? []).find(
+      (candidate) =>
+        candidate && Number(candidate.id).toString(2).padStart(bitCount, '0') === pattern,
+    )
+    return node?.name ? String(node.name) : pattern
+  })
+}
+
+// Moore targets must agree on every output bit, otherwise the cluster is invalid
+function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
+  const outputs = (nodes ?? [])
+    .filter(
+      (node) => node && patterns.includes(Number(node.id).toString(2).padStart(bitCount, '0')),
+    )
+    .map((node) => String(node.moore_output ?? ''))
+  const width = Math.max(0, ...outputs.map((output) => output.length))
+
+  for (let index = 0; index < width; index += 1) {
+    const bits = new Set(
+      outputs
+        .map((output) => output.charAt(index) || 'x')
+        .filter((bit) => bit === '0' || bit === '1'),
+    )
+    if (bits.size > 1) return false
+  }
+
+  return true
 }
 
 export function removeTransitionById(id) {
@@ -143,24 +233,128 @@ export function handleTransitionClick(id) {
   store.set(active_transition, () => id)
 }
 
-// Existing transition from the same state overlapping the given input
-export function findOverlappingTransition(inputPattern) {
-  const active_tr = store.get(active_transition)
-  const activeTransition = store.get(transition_list)[active_tr]
+// checks whether a transition's input pattern overlaps with any other transition from the same source node
+export function getClusterMergeInfo({ input, output = '' } = {}) {
+  const activeTransitionIndex = store.get(active_transition)
+  const transitions = store.get(transition_list) ?? []
+  const nodes = (store.get(node_list) ?? []).filter(Boolean)
+  const bitCount = getNodeBitCount(nodes)
+  const activeTransition = transitions[activeTransitionIndex]
   if (!activeTransition) return null
-  const src_node = activeTransition.from
-  const groupId = getTransitionGroupId(activeTransition)
-  const normalizedInput = normalizeBitsPattern(inputPattern)
-  const allTransitions = store.get(transition_list) ?? []
-  return (
-    allTransitions.find((transition, index) => {
-      if (!transition || index === active_tr) return false
-      if (transition.from !== src_node) return false
-      if (getTransitionGroupId(transition) === groupId) return false
-      if (transition.hiddenDontCare) return false
-      return patternsOverlap(normalizedInput, getInputFromLabel(transition.label))
-    }) ?? null
-  )
+
+  const requestedInput = normalizeBitsPattern(input)
+  const requestedOutput = normalizeBitsPattern(output)
+  const sourceNode = activeTransition.from
+  const activeGroupId = getTransitionGroupId(activeTransition)
+  const overlappingGroupIdsFound = new Set()
+  let overlapping = null
+
+  transitions.forEach((transition, index) => {
+    if (!transition || index === activeTransitionIndex) return
+    if (transition.from !== sourceNode) return
+    if (getTransitionGroupId(transition) === activeGroupId) return
+    if (transition.hiddenDontCare) return
+    if (!patternsOverlap(requestedInput, getInputFromLabel(transition.label))) return
+    overlappingGroupIdsFound.add(getTransitionGroupId(transition))
+    if (!overlapping) overlapping = transition
+  })
+
+  if (!overlapping) return null
+
+  const overlappingGroupId = getTransitionGroupId(overlapping)
+  const overlappingGroupEntries = transitions
+    .map((transition, index) =>
+      transition && getTransitionGroupId(transition) === overlappingGroupId ? index : -1,
+    )
+    .filter((transitionId) => transitionId >= 0)
+  const existingTargets = getGroupTargetPatterns(transitions, overlappingGroupEntries, bitCount)
+  const existingInput = getInputFromLabel(overlapping.label)
+  const existingOutput = getOutputFromLabel(overlapping.label)
+  const existingNames = getNodeNamesForPatterns(nodes, existingTargets, bitCount).join(', ')
+  const info = {
+    mergeable: false,
+    cube: null,
+    groupId: overlappingGroupId,
+    input: existingInput,
+    output: existingOutput,
+    targets: existingTargets,
+  }
+
+  if (overlappingGroupIdsFound.size > 1) {
+    return {
+      ...info,
+      message: `The input pattern "${showPattern(requestedInput)}" also covers inputs that already have their own next state. One row carries one input pattern, and the state table stores one next state per state and input, so it cannot show another one.`,
+    }
+  }
+
+  if (!activeTransition.isDraft) {
+    return {
+      ...info,
+      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${existingNames}. A state and input pair carries one next state, so combine both targets in the state table.`,
+    }
+  }
+
+  if (!Number.isFinite(activeTransition.to) || activeTransition.to < 0) {
+    return {
+      ...info,
+      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${existingNames}. The state table stores one next state per state and input, so it cannot show another one.`,
+    }
+  }
+
+  const draftPattern = toBinaryPattern(activeTransition.to, bitCount)
+  const draftName = getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0]
+
+  if (existingTargets.includes(draftPattern)) {
+    return {
+      ...info,
+      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${draftName}. The state table stores one next state per state and input, so this transition would not change anything.`,
+    }
+  }
+
+  if (requestedInput !== existingInput) {
+    return {
+      ...info,
+      message: `This state already uses the input pattern "${showPattern(existingInput)}" for the next state ${existingNames}, which also covers other inputs. The state table stores one next state per state and input, so it cannot show both as separate rows.`,
+    }
+  }
+
+  if (!isMooreMode() && requestedOutput !== existingOutput) {
+    return {
+      ...info,
+      message: `This state already uses the input "${showPattern(existingInput)}" with the output "${showPattern(existingOutput)}". One row carries one output, so the state table cannot show both outputs for this input.`,
+    }
+  }
+
+  const targets = Array.from(new Set([...existingTargets, draftPattern]))
+  const enclosing = getEnclosingPattern(targets)
+  const cube = getExactCubePattern(targets)
+
+  if (!cube) {
+    const differing = (enclosing.match(/x/g) ?? []).length
+    const extraNames = getNodeNamesForPatterns(
+      nodes,
+      expandDontCares(enclosing).filter((pattern) => !targets.includes(pattern)),
+      bitCount,
+    ).join(', ')
+    return {
+      ...info,
+      message: `${existingNames} and ${draftName} differ in ${differing} bits, so no don't-care pattern covers exactly them: "${showPattern(enclosing)}" would also target ${extraNames}. The state table stores one next state per state and input, so it cannot display this configuration.`,
+    }
+  }
+
+  if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
+    return {
+      ...info,
+      message: `The states ${getNodeNamesForPatterns(nodes, targets, bitCount).join(', ')} have conflicting Moore outputs, so combining them would make the automaton invalid - the state table cannot store this cluster.`,
+    }
+  }
+
+  return {
+    ...info,
+    mergeable: true,
+    cube,
+    message: `Submitting combines both targets into the don't-care row "${showPattern(cube)}", because the state table stores one next state per state and input.`,
+  }
 }
 
 // Handle Save on Changing a Transition's Label
@@ -188,7 +382,7 @@ export function handleTransitionSave(labels) {
           alert,
           `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
             maxInput === 1 ? '' : 's'
-          } using only 0, 1 or x.`,
+          } using only 0, 1 or -.`,
         )
         store.set(show_popup, false)
         setTimeout(() => store.set(alert, ''), 3500)
@@ -202,7 +396,7 @@ export function handleTransitionSave(labels) {
         alert,
         `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
           maxInput === 1 ? '' : 's'
-        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using only 0, 1 or x.`,
+        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using only 0, 1 or -.`,
       )
       store.set(show_popup, false)
       setTimeout(() => store.set(alert, ''), 3500)
@@ -244,6 +438,37 @@ export function handleTransitionSave(labels) {
   })
 
   if (duplicateExists) {
+    const mergeInfo = getClusterMergeInfo({ input: nextInput, output: moore ? '' : nextOutput })
+
+    // One input carries one next-state pattern: add the draft as a second cluster target
+    if (activeTransition.isDraft && mergeInfo?.mergeable) {
+      addToHistory()
+      store.set(transition_list, (old) => {
+        const newTrList = [...old]
+        const draft = newTrList[active_tr]
+        if (!draft) return newTrList
+        newTrList[active_tr] = {
+          ...draft,
+          groupId: mergeInfo.groupId,
+          label: moore ? mergeInfo.input : `${mergeInfo.input}/${mergeInfo.output}`,
+          input: mergeInfo.input,
+          output: moore ? '' : mergeInfo.output,
+          mealyOutput: moore ? undefined : mergeInfo.output,
+          mealy_output: moore ? undefined : mergeInfo.output,
+          hiddenDontCare: false,
+          isDraft: false,
+        }
+        return newTrList
+      })
+
+      store.set(show_popup, false)
+      store.set(active_transition, null)
+      store.set(alert, `Combined into the don't-care row "${showPattern(mergeInfo.cube)}".`)
+      setTimeout(() => store.set(alert, ''), 3500)
+      sendExportToMainState()
+      return
+    }
+
     store.set(show_popup, false)
     if (activeTransition.isDraft) {
       removeTransitionById(active_tr)
