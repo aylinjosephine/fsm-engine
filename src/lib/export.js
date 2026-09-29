@@ -297,7 +297,11 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
     const output = t.output ?? t.mealy_output ?? ''
     const groupId = t.groupId ?? existing?.groupId ?? t.id
 
-    let labelFromParent = String(t.label ?? existing?.label ?? '0/0').replace(/-/g, 'x')
+    // Never invent a fixed pattern here: a wrong bit count would make the row block real transitions
+    const fallbackInput = 'x'.repeat(store.get(input_bit_count) || 1)
+    const fallbackOutput = 'x'.repeat(store.get(output_bit_count) || 1)
+    const fallbackLabel = isMoore ? fallbackInput : `${fallbackInput}/${fallbackOutput}`
+    let labelFromParent = String(t.label ?? existing?.label ?? fallbackLabel).replace(/-/g, 'x')
     if (typeof t.input === 'string') {
       labelFromParent = isMoore
         ? String(t.input).replace(/-/g, 'x')
@@ -617,6 +621,11 @@ window.addEventListener('message', (event) => {
   const { fsmType = 'mealy' } = fsm
   const isMoore = fsmType === 'moore'
 
+  // Set the fixed i/o bit counts first: labels and patterns are built against them below
+  store.set(fsm_type, fsmType)
+  store.set(input_bit_count, Number(fsm.inputBitCount) || 1)
+  store.set(output_bit_count, Number(fsm.outputBitCount) || 1)
+
   const existingNodes = store.get(node_list) ?? []
   const nodeAtoms = []
   const maxIncomingId = states.reduce((m, s) => Math.max(m, Number(s?.id ?? -1)), 0)
@@ -879,11 +888,6 @@ window.addEventListener('message', (event) => {
 
     const removedTransitionIds = getRemovedTransitionIds(existingTransitions, transitionAtoms)
 
-    store.set(fsm_type, fsmType)
-    // Store the fixed i/o bit counts from the app so editor inputs are
-    // limited to the configured values.
-    store.set(input_bit_count, Number(fsm.inputBitCount) || 1)
-    store.set(output_bit_count, Number(fsm.outputBitCount) || 1)
     // Apply transitions synchronously
     store.set(transition_list, transitionAtoms)
     // Release after the live-export debounce period to avoid echoing the imported state back to the app

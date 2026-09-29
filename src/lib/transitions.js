@@ -70,6 +70,12 @@ function isMooreMode() {
   return store.get(fsm_type) === 'moore'
 }
 
+// Rows whose input pattern does not match the current bit count are leftovers and must not block new ones
+function hasStaleInput(label) {
+  const inputBits = store.get(input_bit_count) || 1
+  return getInputFromLabel(label).length !== inputBits
+}
+
 // Calculates bit width of a next-state pattern (derived from the highest state id)
 function getNodeBitCount(nodes) {
   const maxNodeId = (nodes ?? []).reduce((max, node) => Math.max(max, Number(node?.id ?? -1)), -1)
@@ -139,13 +145,18 @@ function getNodeNamesForPatterns(nodes, patterns, bitCount) {
   })
 }
 
-// Moore targets must agree on every output bit, otherwise the cluster is invalid
+// Moore targets must agree on a concrete output, otherwise the cluster breaks as soon as an output is set
 function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
   const outputs = (nodes ?? [])
     .filter(
       (node) => node && patterns.includes(Number(node.id).toString(2).padStart(bitCount, '0')),
     )
     .map((node) => String(node.moore_output ?? ''))
+
+  // Every covered state needs a concrete output: an open one can be set to a different value later
+  if (outputs.length !== patterns.length) return false
+  if (outputs.some((output) => !/^[01]+$/.test(output))) return false
+
   const width = Math.max(0, ...outputs.map((output) => output.length))
 
   for (let index = 0; index < width; index += 1) {
@@ -174,8 +185,17 @@ function isOutputCoveredBy(existingOutput, requestedOutput) {
 
 // Keep messages short when a pattern would cover many states
 function formatNodeNames(names, max = 3) {
-  if (names.length <= max) return names.join(', ')
-  return `${names.slice(0, max).join(', ')} and ${names.length - max} more`
+  const quoted = names.map((name) => `"${name}"`)
+  if (quoted.length <= 1) return quoted[0] ?? ''
+  if (quoted.length <= max)
+    return `${quoted.slice(0, -1).join(', ')} and ${quoted[quoted.length - 1]}`
+  return `${quoted.slice(0, max).join(', ')} and ${names.length - max} more`
+}
+
+// "the next state \"q1\"" / "the next states \"q1\" and \"q2\""
+function nextStatePhrase(names) {
+  const formatted = formatNodeNames(names)
+  return names.length <= 1 ? `the next state ${formatted}` : `the next states ${formatted}`
 }
 
 export function removeTransitionById(id) {
@@ -272,6 +292,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     if (transition.from !== sourceNode) return
     if (getTransitionGroupId(transition) === activeGroupId) return
     if (transition.hiddenDontCare) return
+    if (hasStaleInput(transition.label)) return
     if (!patternsOverlap(requestedInput, getInputFromLabel(transition.label))) return
     overlappingGroupIdsFound.add(getTransitionGroupId(transition))
     if (!overlapping) overlapping = transition
@@ -288,7 +309,8 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   const existingTargets = getGroupTargetPatterns(transitions, overlappingGroupEntries, bitCount)
   const existingInput = getInputFromLabel(overlapping.label)
   const existingOutput = getOutputFromLabel(overlapping.label)
-  const existingNames = getNodeNamesForPatterns(nodes, existingTargets, bitCount).join(', ')
+  const existingNameList = getNodeNamesForPatterns(nodes, existingTargets, bitCount)
+  const existingTargetsPhrase = nextStatePhrase(existingNameList)
   const info = {
     mergeable: false,
     cube: null,
@@ -298,7 +320,11 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     targets: existingTargets,
   }
 
-  if (overlappingGroupIdsFound.size > 1) {
+  // Only a pattern of the new transition itself can "cover" several existing rows
+  const requestedIsPattern = requestedInput.includes('x')
+  const existingIsPattern = existingInput.includes('x')
+
+  if (requestedIsPattern && overlappingGroupIdsFound.size > 1) {
     return {
       ...info,
       message: `The input pattern "${showPattern(requestedInput)}" also covers inputs that already have their own next state. One row carries one input pattern, and the state table stores one next state per state and input, so it cannot show another one.`,
@@ -308,28 +334,52 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (!activeTransition.isDraft) {
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${existingNames}. A state and input pair carries one next state, so combine both targets in the state table.`,
+      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. A state and input pair carries one next state, so combine both targets in the state table.`,
     }
   }
 
   if (!Number.isFinite(activeTransition.to) || activeTransition.to < 0) {
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${existingNames}. The state table stores one next state per state and input, so it cannot show another one.`,
+      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The state table stores one next state per state and input, so it cannot show another one.`,
     }
   }
 
   const draftPattern = toBinaryPattern(activeTransition.to, bitCount)
-  const draftName = getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0]
+  const draftName =
+    getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0] ?? showPattern(draftPattern)
+  const draftPhrase = nextStatePhrase([draftName])
   const outputNote =
     !isMooreMode() && requestedOutput !== existingOutput
       ? ` The row keeps its output "${showPattern(existingOutput)}", which already allows "${showPattern(requestedOutput)}".`
       : ''
 
   if (requestedInput !== existingInput) {
+    // Name the direction the pattern covers, otherwise the hint points at the wrong input
+    if (requestedIsPattern && existingIsPattern) {
+      return {
+        ...info,
+        message: `This state already uses the input pattern "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The pattern "${showPattern(requestedInput)}" overlaps it without covering it, so the state table cannot show both as separate rows.`,
+      }
+    }
+
+    if (requestedIsPattern) {
+      return {
+        ...info,
+        message: `The input pattern "${showPattern(requestedInput)}" also covers the input "${showPattern(existingInput)}", for which ${existingTargetsPhrase} is already stored. One row carries one input pattern, and the state table stores one next state per state and input, so it cannot show another one.`,
+      }
+    }
+
+    if (existingIsPattern) {
+      return {
+        ...info,
+        message: `This state already uses the input pattern "${showPattern(existingInput)}" for ${existingTargetsPhrase}, which also covers the input "${showPattern(requestedInput)}". The state table stores one next state per state and input, so it cannot show both as separate rows.`,
+      }
+    }
+
     return {
       ...info,
-      message: `This state already uses the input pattern "${showPattern(existingInput)}" for the next state ${existingNames}, which also covers other inputs. The state table stores one next state per state and input, so it cannot show both as separate rows.`,
+      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The state table stores one next state per state and input, so it cannot show both as separate rows.`,
     }
   }
 
@@ -343,7 +393,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (existingTargets.includes(draftPattern)) {
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${draftName}. The state table stores one next state per state and input, so this transition would not change anything.`,
+      message: `This state already uses the input "${showPattern(existingInput)}" for ${draftPhrase}. The state table stores one next state per state and input, so this transition would not change anything.`,
     }
   }
 
@@ -362,14 +412,16 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     )
     return {
       ...info,
-      message: `${existingNames} and ${draftName} differ in ${differing} bits, so no don't-care pattern covers exactly them: "${showPattern(enclosing)}" would also target ${extraNames}. The state table stores one next state per state and input, so it cannot display this configuration.`,
+      message: `The next states ${formatNodeNames([...existingNameList, draftName])} differ in ${differing} bits, so no don't-care pattern covers exactly them: "${showPattern(enclosing)}" would also target ${extraNames}. The state table stores one next state per state and input, so it cannot display this configuration.`,
     }
   }
 
   if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
     return {
       ...info,
-      message: `The states ${formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))} have conflicting Moore outputs, so combining them would make the FSM invalid - the state table cannot store this cluster.`,
+      message: `The states ${formatNodeNames(
+        getNodeNamesForPatterns(nodes, targets, bitCount),
+      )} do not share the same output. In Moore mode the output belongs to the state, so combining them can never be shown in the state table - set one output for these states first, or narrow the next state to states that share an output.`,
     }
   }
 
@@ -458,6 +510,8 @@ export function handleTransitionSave(labels) {
     if (getTransitionGroupId(transition) === groupId) return false
     // ignore hidden don't-care transitions for the purpose of duplication checks
     if (handleHiddenDontCareTransitions && transition.hiddenDontCare) return false
+    // leftover rows from another bit width must not block the new transition
+    if (hasStaleInput(transition.label)) return false
     return overlapsAnyLabel(getInputFromLabel(transition.label))
   })
 
