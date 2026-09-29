@@ -369,7 +369,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
     return {
       ...info,
-      message: `The states ${formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))} have conflicting Moore outputs, so combining them would make the automaton invalid - the state table cannot store this cluster.`,
+      message: `The states ${formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))} have conflicting Moore outputs, so combining them would make the fsm invalid - the state table cannot store this cluster.`,
     }
   }
 
