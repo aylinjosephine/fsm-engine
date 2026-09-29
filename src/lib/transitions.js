@@ -160,6 +160,24 @@ function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
   return true
 }
 
+// Check if an existing output pattern covers a requested output pattern.
+function isOutputCoveredBy(existingOutput, requestedOutput) {
+  const existing = normalizeBitsPattern(existingOutput)
+  const requested = normalizeBitsPattern(requestedOutput)
+  const width = Math.max(existing.length, requested.length)
+  return Array.from({ length: width }, (_, index) => {
+    const bit = existing.charAt(index) || 'x'
+    const wanted = requested.charAt(index) || 'x'
+    return bit === 'x' || bit === wanted
+  }).every(Boolean)
+}
+
+// Keep messages short when a pattern would cover many states
+function formatNodeNames(names, max = 3) {
+  if (names.length <= max) return names.join(', ')
+  return `${names.slice(0, max).join(', ')} and ${names.length - max} more`
+}
+
 export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list).find((t) => t?.id === id)
   if (!transitionEntry) return false
@@ -303,13 +321,10 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
 
   const draftPattern = toBinaryPattern(activeTransition.to, bitCount)
   const draftName = getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0]
-
-  if (existingTargets.includes(draftPattern)) {
-    return {
-      ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${draftName}. The state table stores one next state per state and input, so this transition would not change anything.`,
-    }
-  }
+  const outputNote =
+    !isMooreMode() && requestedOutput !== existingOutput
+      ? ` The row keeps its output "${showPattern(existingOutput)}", which already allows "${showPattern(requestedOutput)}".`
+      : ''
 
   if (requestedInput !== existingInput) {
     return {
@@ -318,10 +333,17 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     }
   }
 
-  if (!isMooreMode() && requestedOutput !== existingOutput) {
+  if (!isMooreMode() && !isOutputCoveredBy(existingOutput, requestedOutput)) {
     return {
       ...info,
       message: `This state already uses the input "${showPattern(existingInput)}" with the output "${showPattern(existingOutput)}". One row carries one output, so the state table cannot show both outputs for this input.`,
+    }
+  }
+
+  if (existingTargets.includes(draftPattern)) {
+    return {
+      ...info,
+      message: `This state already uses the input "${showPattern(existingInput)}" for the next state ${draftName}. The state table stores one next state per state and input, so this transition would not change anything.`,
     }
   }
 
@@ -331,11 +353,13 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
 
   if (!cube) {
     const differing = (enclosing.match(/x/g) ?? []).length
-    const extraNames = getNodeNamesForPatterns(
-      nodes,
-      expandDontCares(enclosing).filter((pattern) => !targets.includes(pattern)),
-      bitCount,
-    ).join(', ')
+    const extraNames = formatNodeNames(
+      getNodeNamesForPatterns(
+        nodes,
+        expandDontCares(enclosing).filter((pattern) => !targets.includes(pattern)),
+        bitCount,
+      ),
+    )
     return {
       ...info,
       message: `${existingNames} and ${draftName} differ in ${differing} bits, so no don't-care pattern covers exactly them: "${showPattern(enclosing)}" would also target ${extraNames}. The state table stores one next state per state and input, so it cannot display this configuration.`,
@@ -345,7 +369,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
     return {
       ...info,
-      message: `The states ${getNodeNamesForPatterns(nodes, targets, bitCount).join(', ')} have conflicting Moore outputs, so combining them would make the automaton invalid - the state table cannot store this cluster.`,
+      message: `The states ${formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))} have conflicting Moore outputs, so combining them would make the automaton invalid - the state table cannot store this cluster.`,
     }
   }
 
@@ -353,7 +377,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     ...info,
     mergeable: true,
     cube,
-    message: `Submitting combines both targets into the don't-care row "${showPattern(cube)}", because the state table stores one next state per state and input.`,
+    message: `Submitting combines both targets into the don't-care row "${showPattern(cube)}", because the state table stores one next state per state and input.${outputNote}`,
   }
 }
 
@@ -484,7 +508,7 @@ export function handleTransitionSave(labels) {
   addToHistory()
   store.set(show_popup, false)
 
-  // If this new transition only overwrites hidden don't-care transitions, allow it
+  // if  a draft transition "overlaps" with hidden don't-care transitions, update those instead of removing the draft
   if (
     handleHiddenDontCareTransitions &&
     activeTransition.isDraft &&
@@ -493,6 +517,15 @@ export function handleTransitionSave(labels) {
     const nodesMap = store.get(node_list) ?? []
     const existing = store.get(transition_list) ?? []
     const updated = [...existing]
+    const replacedOutputInfo =
+      !moore &&
+      overlappingHiddenIds.some((hid) => {
+        const previous = existing[hid]
+        return (
+          previous &&
+          !/^x+$/.test(String(previous.output ?? previous.mealy_output ?? '').replace(/-/g, 'x'))
+        )
+      })
     overlappingHiddenIds.forEach((hid) => {
       if (!updated[hid]) return
       const hasConcreteTarget = Number.isFinite(activeTransition.to) && activeTransition.to >= 0
@@ -554,6 +587,14 @@ export function handleTransitionSave(labels) {
 
     // remove the draft transition if it was the active one
     removeTransitionById(active_tr)
+
+    if (replacedOutputInfo) {
+      store.set(
+        alert,
+        `Replaced the don't-care transition for this input; its output is now "${showPattern(nextOutput)}".`,
+      )
+      setTimeout(() => store.set(alert, ''), 3500)
+    }
 
     store.set(active_transition, null)
     sendExportToMainState()

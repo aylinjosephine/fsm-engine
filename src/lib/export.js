@@ -324,6 +324,9 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           label: labelFromParent,
           from: t.from,
           to: t.to,
+          input: typeof t.input === 'string' ? t.input : (existing.input ?? ''),
+          output,
+          mealy_output: output,
           hiddenDontCare: !!t.hiddenDontCare,
           // imported transitions are never drafts
           isDraft: false,
@@ -338,6 +341,9 @@ function buildTransitionAtoms(transitions, existingTransitions, nodesMap) {
           from: t.from,
           to: t.to,
           label: labelFromParent,
+          input: typeof t.input === 'string' ? t.input : '',
+          output,
+          mealy_output: output,
           hiddenDontCare: !!t.hiddenDontCare,
           isDraft: false,
           stroke: themeStroke,
@@ -548,10 +554,18 @@ function normalizeTransitionForParent(transition) {
 export function extractFsmData() {
   const nodes = store.get(node_list) ?? []
   const definedNodes = nodes.filter(Boolean)
-  const transitions = (store.get(transition_list) ?? []).filter(
-    (transition) => transition && !transition.isDraft && !transition.hiddenDontCare,
-  )
   const fsmType = store.get(fsm_type) ?? 'mealy'
+
+  // hidden don't-care transitions that are not rendered might exist in the editor andmust be preserved for export.
+  const carriesOutput = (transition) =>
+    fsmType !== 'moore' &&
+    !/^x+$/.test(String(transition?.output ?? transition?.mealy_output ?? '').replace(/-/g, 'x'))
+  const transitions = (store.get(transition_list) ?? []).filter(
+    (transition) =>
+      transition &&
+      !transition.isDraft &&
+      (!transition.hiddenDontCare || carriesOutput(transition)),
+  )
   const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
   const visibleTransitionIds = new Set(visibleTransitions.map((t) => t.id))
   const visibleTransitionKeys = new Set(visibleTransitions.map((t) => `${t.from}:${t.input}`))
@@ -729,13 +743,12 @@ window.addEventListener('message', (event) => {
         'x',
         'left',
       )
-      // Hidden means "carries no next-state or output information"; the input bits do not matter
-      const isHiddenDontCare = isMoore
-        ? /^x+$/.test(targetPattern)
-        : /^x+$/.test(targetPattern) &&
-          typeof baseLabelOutput === 'string' &&
-          baseLabelOutput.length > 0 &&
-          /^x+$/.test(baseLabelOutput)
+      /*
+      All don't-care next-state bits mean "any next state is allowed". This is used for minimization.
+      Therefore, such a row is never drawn, because, otherwise every auto-generated don't-care row would
+      flood the canvas with an arrow to each state. This is a special case to (hopefully)optimize the ui/ux.
+      */
+      const isHiddenDontCare = /^x+$/.test(targetPattern)
 
       if (isHiddenDontCare) {
         renderableTransitions.push({
