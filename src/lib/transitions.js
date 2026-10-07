@@ -3,7 +3,6 @@ import { expandDontCares, sendExportToMainState } from './export'
 import { addToHistory } from './history'
 import {
   active_transition,
-  alert,
   editor_state,
   fsm_type,
   input_bit_count,
@@ -145,22 +144,15 @@ function getNodeNamesForPatterns(nodes, patterns, bitCount) {
   })
 }
 
-// Moore targets must agree on a concrete output, otherwise the cluster breaks as soon as an output is set
+// Moore targets must show the same output bits, otherwise the merged transition has no single output
 function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
   const outputs = getMooreOutputsForPatterns(nodes, patterns, bitCount)
-
-  // Every covered state needs a concrete output: an open one can be set to a different value later
   if (outputs.length !== patterns.length) return false
-  if (outputs.some((output) => !/^[01]+$/.test(output))) return false
 
   const width = Math.max(0, ...outputs.map((output) => output.length))
 
   for (let index = 0; index < width; index += 1) {
-    const bits = new Set(
-      outputs
-        .map((output) => output.charAt(index) || 'x')
-        .filter((bit) => bit === '0' || bit === '1'),
-    )
+    const bits = new Set(outputs.map((output) => output.charAt(index) || 'x'))
     if (bits.size > 1) return false
   }
 
@@ -423,13 +415,9 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
 
   if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
     const nameList = formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))
-    const outputs = getMooreOutputsForPatterns(nodes, targets, bitCount)
-    const outputsAreConcrete = outputs.every((output) => /^[01]+$/.test(output))
     return {
       ...info,
-      message: outputsAreConcrete
-        ? `${nameList} have different outputs - in Moore the output belongs to the state.`
-        : `${nameList} have no final output yet - set one output for both.`,
+      message: `${nameList} must show the same output - in Moore the output belongs to the state.`,
     }
   }
 
