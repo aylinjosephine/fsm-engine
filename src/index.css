@@ -107,17 +107,6 @@
 
 #body {
   background-color: var(--color-elevated);
-  background-image:
-    linear-gradient(to right, rgba(120, 138, 170, 0.08) 2px, transparent 2px),
-    linear-gradient(to bottom, rgba(120, 138, 170, 0.08) 2px, transparent 2px);
-  background-size: 24px 24px;
-  background-position: center center;
-}
-
-:root.light #body {
-  background-image:
-    linear-gradient(to right, rgba(58, 76, 106, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(58, 76, 106, 0.08) 1px, transparent 1px);
 }
 
 /* Dark Scrollbar */
