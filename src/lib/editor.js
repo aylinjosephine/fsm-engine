@@ -26,10 +26,10 @@ import {
   transition_pairs,
 } from './stores'
 
-const MAX_FSM_STATES = 16
+export const MAX_FSM_STATES = 16
 
-function notifyStateLimit() {
-  store.set(alert, `The maximum of ${MAX_FSM_STATES} states has been reached in the editor.`)
+export function notifyStateLimit() {
+  store.set(alert, `At most ${MAX_FSM_STATES} states are allowed.`)
   setTimeout(() => store.set(alert, ''), 2500)
 }
 
