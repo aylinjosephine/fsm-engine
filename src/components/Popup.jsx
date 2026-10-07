@@ -79,14 +79,6 @@ function ChooseTransitionLabel() {
     const inputComplete = isComplete(inputBitsArr, inputBits)
     const outputComplete = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
     if (inputComplete && outputComplete) return ''
-    const hasInvalid = (arr, len) =>
-      arr.slice(0, len).some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
-    if (
-      hasInvalid(inputBitsArr, inputBits) ||
-      (FsmType !== 'moore' && hasInvalid(outputBitsArr, outputBits))
-    ) {
-      return 'Only the characters 0, 1 or - are allowed.'
-    }
     const parts = []
     if (!inputComplete) parts.push(`${inputBits} input bit${inputBits === 1 ? '' : 's'}`)
     if (!outputComplete) parts.push(`${outputBits} output bit${outputBits === 1 ? '' : 's'}`)
@@ -165,10 +157,7 @@ function ChooseTransitionLabel() {
   function handleBitChange(kind, index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) {
-      setHint('Only the characters 0, 1 or - are allowed.')
-      return
-    }
+    if (!/^[01-]$/.test(ch)) return
     setInvalidAttempt(false)
     setHint('')
     const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr

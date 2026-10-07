@@ -148,10 +148,7 @@ const Settings = () => {
   function handleMooreBitChange(index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) {
-      setHint('Only the characters 0, 1 or - are allowed.')
-      return
-    }
+    if (!/^[01-]$/.test(ch)) return
     setHint('')
     setMooreBits((prev) => {
       const next = [...prev]
@@ -203,10 +200,6 @@ const Settings = () => {
   function getValidationHint() {
     if (fsmType !== 'moore') return ''
     if (isComplete(mooreBits, outputBitCount)) return ''
-    const hasInvalid = mooreBits
-      .slice(0, outputBitCount)
-      .some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
-    if (hasInvalid) return 'Only the characters 0, 1 or - are allowed.'
     return `Please fill in ${outputBitCount} output bit${outputBitCount === 1 ? '' : 's'}.`
   }
 

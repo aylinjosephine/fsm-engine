@@ -147,11 +147,7 @@ function getNodeNamesForPatterns(nodes, patterns, bitCount) {
 
 // Moore targets must agree on a concrete output, otherwise the cluster breaks as soon as an output is set
 function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
-  const outputs = (nodes ?? [])
-    .filter(
-      (node) => node && patterns.includes(Number(node.id).toString(2).padStart(bitCount, '0')),
-    )
-    .map((node) => String(node.moore_output ?? ''))
+  const outputs = getMooreOutputsForPatterns(nodes, patterns, bitCount)
 
   // Every covered state needs a concrete output: an open one can be set to a different value later
   if (outputs.length !== patterns.length) return false
@@ -171,16 +167,25 @@ function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
   return true
 }
 
-// Check if an existing output pattern covers a requested output pattern.
-function isOutputCoveredBy(existingOutput, requestedOutput) {
+// Outputs of the states a pattern covers, in the same order as the patterns
+function getMooreOutputsForPatterns(nodes, patterns, bitCount) {
+  return (nodes ?? [])
+    .filter(
+      (node) => node && patterns.includes(Number(node.id).toString(2).padStart(bitCount, '0')),
+    )
+    .map((node) => String(node.moore_output ?? ''))
+}
+
+// One row carries one output: differing bits become don't-care for the minimization
+function mergeOutputPatterns(existingOutput, requestedOutput) {
   const existing = normalizeBitsPattern(existingOutput)
   const requested = normalizeBitsPattern(requestedOutput)
   const width = Math.max(existing.length, requested.length)
   return Array.from({ length: width }, (_, index) => {
-    const bit = existing.charAt(index) || 'x'
-    const wanted = requested.charAt(index) || 'x'
-    return bit === 'x' || bit === wanted
-  }).every(Boolean)
+    const left = existing.charAt(index) || 'x'
+    const right = requested.charAt(index) || 'x'
+    return left === right ? left : 'x'
+  }).join('')
 }
 
 // Keep messages short when a pattern would cover many states
@@ -327,21 +332,21 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (requestedIsPattern && overlappingGroupIdsFound.size > 1) {
     return {
       ...info,
-      message: `The input pattern "${showPattern(requestedInput)}" also covers inputs that already have their own next state. One row carries one input pattern, and the state table stores one next state per state and input, so it cannot show another one.`,
+      message: `The input pattern "${showPattern(requestedInput)}" covers inputs that already have their own next state.`,
     }
   }
 
   if (!activeTransition.isDraft) {
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. A state and input pair carries one next state, so combine both targets in the state table.`,
+      message: `This input already maps to ${existingTargetsPhrase} - combine both targets in the state table.`,
     }
   }
 
   if (!Number.isFinite(activeTransition.to) || activeTransition.to < 0) {
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The state table stores one next state per state and input, so it cannot show another one.`,
+      message: `This input already maps to ${existingTargetsPhrase} - one row holds one next state.`,
     }
   }
 
@@ -349,51 +354,51 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   const draftName =
     getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0] ?? showPattern(draftPattern)
   const draftPhrase = nextStatePhrase([draftName])
-  const outputNote =
-    !isMooreMode() && requestedOutput !== existingOutput
-      ? ` The row keeps its output "${showPattern(existingOutput)}", which already allows "${showPattern(requestedOutput)}".`
-      : ''
 
   if (requestedInput !== existingInput) {
     // Name the direction the pattern covers, otherwise the hint points at the wrong input
     if (requestedIsPattern && existingIsPattern) {
       return {
         ...info,
-        message: `This state already uses the input pattern "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The pattern "${showPattern(requestedInput)}" overlaps it without covering it, so the state table cannot show both as separate rows.`,
+        message: `"${showPattern(existingInput)}" and "${showPattern(requestedInput)}" overlap, so they cannot share one row.`,
       }
     }
 
     if (requestedIsPattern) {
       return {
         ...info,
-        message: `The input pattern "${showPattern(requestedInput)}" also covers the input "${showPattern(existingInput)}", for which ${existingTargetsPhrase} is already stored. One row carries one input pattern, and the state table stores one next state per state and input, so it cannot show another one.`,
+        message: `The pattern "${showPattern(requestedInput)}" also covers the input "${showPattern(existingInput)}" (${existingTargetsPhrase}).`,
       }
     }
 
     if (existingIsPattern) {
       return {
         ...info,
-        message: `This state already uses the input pattern "${showPattern(existingInput)}" for ${existingTargetsPhrase}, which also covers the input "${showPattern(requestedInput)}". The state table stores one next state per state and input, so it cannot show both as separate rows.`,
+        message: `This input is already covered by the pattern "${showPattern(existingInput)}" (${existingTargetsPhrase}).`,
       }
     }
 
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for ${existingTargetsPhrase}. The state table stores one next state per state and input, so it cannot show both as separate rows.`,
+      message: `This input already maps to ${existingTargetsPhrase} - one row holds one next state.`,
     }
   }
 
-  if (!isMooreMode() && !isOutputCoveredBy(existingOutput, requestedOutput)) {
-    return {
-      ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" with the output "${showPattern(existingOutput)}". One row carries one output, so the state table cannot show both outputs for this input.`,
-    }
-  }
-
+  // One row per state and input: the edit may change the target and the output of that row
   if (existingTargets.includes(draftPattern)) {
+    if (requestedOutput === existingOutput) {
+      return {
+        ...info,
+        message: `This input already maps to ${draftPhrase} - nothing would change.`,
+      }
+    }
+
     return {
       ...info,
-      message: `This state already uses the input "${showPattern(existingInput)}" for ${draftPhrase}. The state table stores one next state per state and input, so this transition would not change anything.`,
+      mergeable: true,
+      replacesRow: true,
+      cube: draftPattern,
+      output: requestedOutput,
     }
   }
 
@@ -412,24 +417,28 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     )
     return {
       ...info,
-      message: `The next states ${formatNodeNames([...existingNameList, draftName])} differ in ${differing} bits, so no don't-care pattern covers exactly them: "${showPattern(enclosing)}" would also target ${extraNames}. The state table stores one next state per state and input, so it cannot display this configuration.`,
+      message: `${formatNodeNames([...existingNameList, draftName])} differ in ${differing} bits; "${showPattern(enclosing)}" would also cover ${extraNames}.`,
     }
   }
 
   if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
+    const nameList = formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))
+    const outputs = getMooreOutputsForPatterns(nodes, targets, bitCount)
+    const outputsAreConcrete = outputs.every((output) => /^[01]+$/.test(output))
     return {
       ...info,
-      message: `The states ${formatNodeNames(
-        getNodeNamesForPatterns(nodes, targets, bitCount),
-      )} do not share the same output. In Moore mode the output belongs to the state, so combining them can never be shown in the state table - set one output for these states first, or narrow the next state to states that share an output.`,
+      message: outputsAreConcrete
+        ? `${nameList} have different outputs - in Moore the output belongs to the state.`
+        : `${nameList} have no final output yet - set one output for both.`,
     }
   }
 
+  const mergedOutput = isMooreMode() ? '' : mergeOutputPatterns(existingOutput, requestedOutput)
   return {
     ...info,
+    output: mergedOutput,
     mergeable: true,
     cube,
-    message: `Submitting combines both targets into the don't-care row "${showPattern(cube)}", because the state table stores one next state per state and input.${outputNote}`,
   }
 }
 
@@ -454,28 +463,12 @@ export function handleTransitionSave(labels) {
   for (const label of stringLabels) {
     if (moore) {
       if (label.length !== maxInput || !/^[01x]+$/.test(label)) {
-        store.set(
-          alert,
-          `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
-            maxInput === 1 ? '' : 's'
-          } using only 0, 1 or -.`,
-        )
-        store.set(show_popup, false)
-        setTimeout(() => store.set(alert, ''), 3500)
         return
       }
       continue
     }
 
     if (!isExactBitLabel(label, maxInput, maxOutput)) {
-      store.set(
-        alert,
-        `The label "${label}" is invalid. Please enter exactly ${maxInput} input bit${
-          maxInput === 1 ? '' : 's'
-        } and ${maxOutput} output bit${maxOutput === 1 ? '' : 's'} using only 0, 1 or -.`,
-      )
-      store.set(show_popup, false)
-      setTimeout(() => store.set(alert, ''), 3500)
       return
     }
   }
@@ -518,6 +511,34 @@ export function handleTransitionSave(labels) {
   if (duplicateExists) {
     const mergeInfo = getClusterMergeInfo({ input: nextInput, output: moore ? '' : nextOutput })
 
+    // Same target: the drawn transition replaces the values of the existing row
+    if (activeTransition.isDraft && mergeInfo?.mergeable && mergeInfo.replacesRow) {
+      const replacedGroupId = mergeInfo.groupId
+      addToHistory()
+      store.set(transition_list, (old) =>
+        old.map((transition) =>
+          transition && getTransitionGroupId(transition) === replacedGroupId
+            ? {
+                ...transition,
+                label: moore ? mergeInfo.input : `${mergeInfo.input}/${mergeInfo.output}`,
+                input: mergeInfo.input,
+                output: moore ? '' : mergeInfo.output,
+                mealyOutput: moore ? undefined : mergeInfo.output,
+                mealy_output: moore ? undefined : mergeInfo.output,
+                hiddenDontCare: false,
+                isDraft: false,
+              }
+            : transition,
+        ),
+      )
+      // Drop the draft, so the state and input keep exactly one arrow
+      removeTransitionById(active_tr)
+      store.set(show_popup, false)
+      store.set(active_transition, null)
+      sendExportToMainState()
+      return
+    }
+
     // One input carries one next-state pattern: add the draft as a second cluster target
     if (activeTransition.isDraft && mergeInfo?.mergeable) {
       addToHistory()
@@ -541,8 +562,6 @@ export function handleTransitionSave(labels) {
 
       store.set(show_popup, false)
       store.set(active_transition, null)
-      store.set(alert, `Combined into the don't-care row "${showPattern(mergeInfo.cube)}".`)
-      setTimeout(() => store.set(alert, ''), 3500)
       sendExportToMainState()
       return
     }
@@ -550,11 +569,7 @@ export function handleTransitionSave(labels) {
     store.set(show_popup, false)
     if (activeTransition.isDraft) {
       removeTransitionById(active_tr)
-      store.set(alert, 'The new transition is invalid and was discarded.')
-    } else {
-      store.set(alert, 'The new transition is invalid and cannot be saved.')
     }
-    setTimeout(() => store.set(alert, ''), 3500)
     return
   }
 
@@ -571,15 +586,6 @@ export function handleTransitionSave(labels) {
     const nodesMap = store.get(node_list) ?? []
     const existing = store.get(transition_list) ?? []
     const updated = [...existing]
-    const replacedOutputInfo =
-      !moore &&
-      overlappingHiddenIds.some((hid) => {
-        const previous = existing[hid]
-        return (
-          previous &&
-          !/^x+$/.test(String(previous.output ?? previous.mealy_output ?? '').replace(/-/g, 'x'))
-        )
-      })
     overlappingHiddenIds.forEach((hid) => {
       if (!updated[hid]) return
       const hasConcreteTarget = Number.isFinite(activeTransition.to) && activeTransition.to >= 0
@@ -641,14 +647,6 @@ export function handleTransitionSave(labels) {
 
     // remove the draft transition if it was the active one
     removeTransitionById(active_tr)
-
-    if (replacedOutputInfo) {
-      store.set(
-        alert,
-        `Replaced the don't-care transition for this input; its output is now "${showPattern(nextOutput)}".`,
-      )
-      setTimeout(() => store.set(alert, ''), 3500)
-    }
 
     store.set(active_transition, null)
     sendExportToMainState()
