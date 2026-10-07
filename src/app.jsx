@@ -8,7 +8,6 @@ import Popup from './components/Popup'
 import SaveDialog from './components/SaveDialog'
 import Settings from './components/Settings'
 import TopDock from './components/TopDock'
-import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
 import { node_list, transition_list, show_popup } from './lib/stores'
 import { sendExportToMainState } from './lib/export.js'
@@ -79,8 +78,6 @@ export function App() {
       <Popup />
 
       <SaveDialog />
-
-      <ConfirmDialog />
     </div>
   )
 }
