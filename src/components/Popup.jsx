@@ -11,7 +11,11 @@ import {
   store,
   transition_list,
 } from '../lib/stores'
-import { getClusterMergeInfo, handleTransitionSave, removeTransitionById } from '../lib/transitions'
+import {
+  getTransitionConflict,
+  handleTransitionSave,
+  removeTransitionById,
+} from '../lib/transitions'
 
 const Popup = () => {
   return <ChooseTransitionLabel />
@@ -236,13 +240,13 @@ function ChooseTransitionLabel() {
     store.set(active_transition, null)
   }
 
-  // check whether the targets can share one don't-care cluster or the table cannot show them both
-  const mergeInfo = useMemo(() => {
+  // Check whether this state and input already hold a next state
+  const conflict = useMemo(() => {
     if (!showPopup) return null
     const inputComplete = isComplete(inputBitsArr, inputBits)
     const outputComplete = FsmType === 'moore' || isComplete(outputBitsArr, outputBits)
     if (!inputComplete || !outputComplete) return null
-    return getClusterMergeInfo({
+    return getTransitionConflict({
       input: inputBitsArr.join('').replace(/-/g, 'x'),
       output: FsmType === 'moore' ? '' : outputBitsArr.join('').replace(/-/g, 'x'),
     })
@@ -257,9 +261,8 @@ function ChooseTransitionLabel() {
     ActiveTransition,
   ])
 
-  const duplicateBlocked = Boolean(mergeInfo && !mergeInfo.mergeable)
-  const hintText = mergeInfo ? mergeInfo.message : hint
-  const hintIsInfo = Boolean(mergeInfo?.mergeable)
+  const duplicateBlocked = Boolean(conflict && !conflict.replacesRow)
+  const hintText = conflict?.message ?? hint
 
   function handleBackdropClick() {
     if (!showPopup) return
@@ -295,7 +298,7 @@ function ChooseTransitionLabel() {
       return
     }
 
-    // A target that no don't-care pattern can cover is rejected
+    // A row for this state and input already exists and cannot be updated here
     if (duplicateBlocked) {
       setHint('')
       return
@@ -329,9 +332,7 @@ function ChooseTransitionLabel() {
               maxLength={1}
               value={arr[i] ?? ''}
               aria-label={`${label} bit ${i + 1}`}
-              className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                arr[i] === '-' ? 'text-amber-500' : 'text-on-surface'
-              } ${
+              className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 text-on-surface ${
                 invalidAttempt && !(arr[i] ?? '') ? 'border-red-500' : 'border-border-bg'
               } hover:border-surface-3 focus:border-primary`}
               onChange={(e) => handleBitChange(kind, i, e.target.value)}
@@ -360,11 +361,7 @@ function ChooseTransitionLabel() {
         {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
         {FsmType !== 'moore' &&
           renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
-        <p
-          className={`min-h-[16px] max-w-[260px] text-[11px] font-github -mt-1 mb-2 text-center select-none ${
-            hintIsInfo ? 'text-amber-400' : 'text-red-400'
-          }`}
-        >
+        <p className="min-h-[16px] max-w-[260px] text-[11px] font-github -mt-1 mb-2 text-center select-none text-red-400">
           {hintText}
         </p>
         <div className="flex gap-3 mt-1">
@@ -379,7 +376,12 @@ function ChooseTransitionLabel() {
           <button
             type="button"
             onClick={handleSubmit}
-            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-on-primary bg-primary px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+            disabled={duplicateBlocked}
+            className={`font-github text-sm transition-all ease-in-out text-on-primary bg-primary px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center ${
+              duplicateBlocked
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:scale-110 active:scale-100'
+            }`}
           >
             <CircleCheck size={18} color="#ffffff" />
             Done
