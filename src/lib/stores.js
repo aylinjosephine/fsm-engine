@@ -72,9 +72,6 @@ export const alert = atom('')
 export const show_popup = atom(false)
 export const active_transition = atom(null)
 
-// Store to cache contributors
-export const contributors_data = atom(null)
-
 // Store to disable keyboard shortcuts while dock menus are open
 export const shortcut_context_locked = atom(false)
 

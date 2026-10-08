@@ -420,7 +420,7 @@ export function HandleStateDrag(e, id) {
 export function handleShortCuts(key) {
   const currentEditorState = store.get(editor_state)
 
-  if (['Guide', 'Save FSM', 'settings'].includes(currentEditorState)) {
+  if (currentEditorState === 'settings') {
     return
   }
 

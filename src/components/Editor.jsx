@@ -34,7 +34,7 @@ const Editor = () => {
   const [hoveredStateId, setHoveredStateId] = useState(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState(null)
   const [themeMode, setThemeMode] = useState(getCurrentThemeMode)
-  const hoverDisabledModes = new Set(['Add', 'Auto Layout', 'Guide'])
+  const hoverDisabledModes = new Set(['Add', 'Auto Layout'])
   const allowObjectHoverHighlight = !hoverDisabledModes.has(editorState)
   const transitionsSelectable = editorState !== 'Connect'
   const isLightMode = themeMode === 'light'
