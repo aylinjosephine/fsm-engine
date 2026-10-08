@@ -23,9 +23,8 @@ const Settings = () => {
   // State Hooks for input fields
   const [stateName, setStateName] = useState('')
   const [mooreBits, setMooreBits] = useState([])
-  const [stateColor, setStateColor] = useState('')
+  const [stateColor, setStateColor] = useState('#4a6fae')
   const [isInitial, setIsInitial] = useState(false)
-  const [invalidAttempt, setInvalidAttempt] = useState(false)
   const [hint, setHint] = useState('')
   // State Hooks for input fields
   const nameInputRef = useRef(null)
@@ -67,8 +66,14 @@ const Settings = () => {
         handleSave()
       }
     }
+    // Any close other than an explicit save discards the draft (Escape semantics)
+    const onRequestClose = () => handleCancel()
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('fsm-close-popups', onRequestClose)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('fsm-close-popups', onRequestClose)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     editorState,
@@ -88,18 +93,20 @@ const Settings = () => {
 
     setStateName(node.name ?? '')
     setMooreBits(toBits(node.moore_output ?? '', outputBitCount))
-    setInvalidAttempt(false)
     setHint('')
     setStateColor(String(node.fill ?? '').substr(0, 7))
     setIsInitial(!!node.type?.initial)
   }
 
-  // A state name is invalid when it is empty or already used by another state
-  function isNameInvalid() {
+  // Returns the reason why the name cannot be saved (empty or already used by another state)
+  function getNameHint() {
     const name = sanitizeStateName(stateName)
-    if (!name.trim()) return true
+    if (!name.trim()) return 'Please enter a state name.'
     const currentName = String(nodeList[currentSelected]?.name ?? '')
-    return name !== currentName && isDuplicateName(name)
+    if (name !== currentName && isDuplicateName(name)) {
+      return 'A state with this name already exists.'
+    }
+    return ''
   }
 
   function isDuplicateName(name) {
@@ -147,11 +154,7 @@ const Settings = () => {
   function handleMooreBitChange(index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) {
-      setHint('Only the characters 0, 1 or x are allowed.')
-      return
-    }
-    setInvalidAttempt(false)
+    if (!/^[01-]$/.test(ch)) return
     setHint('')
     setMooreBits((prev) => {
       const next = [...prev]
@@ -187,7 +190,7 @@ const Settings = () => {
     } else if (event.key === 'ArrowRight' && index < outputBitCount - 1) {
       event.preventDefault()
       mooreRefs.current[index + 1]?.focus()
-    } else if (event.key.length === 1 && !/^[01x]$/i.test(event.key)) {
+    } else if (event.key.length === 1 && !/^[01x-]$/i.test(event.key)) {
       event.preventDefault()
     }
   }
@@ -203,38 +206,13 @@ const Settings = () => {
   function getValidationHint() {
     if (fsmType !== 'moore') return ''
     if (isComplete(mooreBits, outputBitCount)) return ''
-    const hasInvalid = mooreBits
-      .slice(0, outputBitCount)
-      .some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
-    if (hasInvalid) return 'Only the characters 0, 1 or x are allowed.'
     return `Please fill in ${outputBitCount} output bit${outputBitCount === 1 ? '' : 's'}.`
   }
 
-  // same validation as the Save button for enter
-  function handleBackdropClick() {
-    handleSave()
-  }
-
+  // Saving is only ever explicit (Enter or Save) and only for a valid draft
   function handleSave() {
+    if (!canSubmit) return
     const name = sanitizeStateName(stateName)
-    if (!name.trim()) {
-      setInvalidAttempt(true)
-      setHint('Please enter a state name.')
-      return
-    }
-    const currentName = String(nodeList[currentSelected]?.name ?? '')
-    if (name !== currentName && isDuplicateName(name)) {
-      setInvalidAttempt(true)
-      setHint('A state with this name already exists.')
-      return
-    }
-    const outputOk = fsmType === 'moore' ? isComplete(mooreBits, outputBitCount) : true
-    if (!outputOk) {
-      setInvalidAttempt(true)
-      setHint(getValidationHint())
-      return
-    }
-    setInvalidAttempt(false)
     setHint('')
     const mooreOutputValue = mooreBits.join('').replace(/-/g, 'x')
     HandleSaveSettings(
@@ -251,9 +229,16 @@ const Settings = () => {
     setDefaultValues()
   }, [editorState, currentSelected])
 
+  // an invalid draft shows its reason and cannot be submitted
+  const nameHint = getNameHint()
+  const outputHint = fsmType === 'moore' ? getValidationHint() : ''
+  const validationHint = nameHint || outputHint
+  const hintText = hint || validationHint
+  const canSubmit = !validationHint
+
   return (
     <div
-      onMouseDown={handleBackdropClick}
+      onMouseDown={handleCancel}
       className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-secondary-bg/30 ${
         editorState !== 'settings' && 'hidden'
       }`}
@@ -273,7 +258,7 @@ const Settings = () => {
             value={stateName}
             maxLength={MAX_STATE_NAME_LENGTH}
             className={`px-1 py-2 text-sm h-9 w-full font-medium text-on-surface font-github rounded-lg border outline-none transition-all ease-in-out ${
-              invalidAttempt && isNameInvalid() ? 'border-red-500' : 'border-border-bg'
+              nameHint ? 'border-red-500' : 'border-border-bg'
             } hover:border-surface-3 focus:border-primary`}
             type="text"
             onChange={(e) => handleNameChange(e.target.value)}
@@ -319,10 +304,8 @@ const Settings = () => {
                   maxLength={1}
                   value={mooreBits[i] ?? ''}
                   aria-label={`state output bit ${i + 1}`}
-                  className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                    mooreBits[i] === '-' ? 'text-amber-500' : 'text-on-surface'
-                  } ${
-                    invalidAttempt && !(mooreBits[i] ?? '') ? 'border-red-500' : 'border-border-bg'
+                  className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 text-on-surface ${
+                    !(mooreBits[i] ?? '') ? 'border-red-500' : 'border-border-bg'
                   } hover:border-surface-3 focus:border-primary`}
                   onChange={(e) => handleMooreBitChange(i, e.target.value)}
                   onKeyDown={(e) => handleMooreKeyDown(i, e)}
@@ -333,7 +316,7 @@ const Settings = () => {
         )}
 
         <p className="min-h-4 max-w-[260px] text-[11px] text-red-400 font-github text-center select-none">
-          {hint}
+          {hintText}
         </p>
 
         <span className="flex gap-5 items-center justify-center my-2 w-full">
@@ -346,10 +329,16 @@ const Settings = () => {
           </span>
 
           <span
-            onClick={handleSave}
-            className="flex items-center justify-center gap-2 bg-primary text-on-primary w-fit px-2 py-2 rounded-lg cursor-pointer hover:scale-105 active:scale-95 transition-all ease-in-out"
+            onClick={() => canSubmit && handleSave()}
+            role="button"
+            aria-disabled={!canSubmit}
+            className={`flex items-center justify-center gap-2 w-fit px-2 py-2 rounded-lg transition-all ease-in-out ${
+              canSubmit
+                ? 'bg-primary text-on-primary cursor-pointer hover:scale-105 active:scale-95'
+                : 'bg-surface-2 text-on-surface-disabled opacity-60 cursor-not-allowed'
+            }`}
           >
-            <CircleCheck color="#ffffff" size={18} />
+            <CircleCheck color={canSubmit ? '#ffffff' : '#9498a3'} size={18} />
             <p className="font-github text-sm font-semibold">Save</p>
           </span>
         </span>

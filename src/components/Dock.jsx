@@ -1,7 +1,7 @@
 import { useAtom, useAtomValue } from 'jotai'
 import { Cable, MinusCircleIcon, Move, PlusCircleIcon, Sparkles } from 'lucide-react'
-import { editor_state, transition_pairs } from '../lib/stores'
-import { HandleAutoLayout } from '../lib/editor'
+import { editor_state, node_list, transition_pairs } from '../lib/stores'
+import { HandleAutoLayout, MAX_FSM_STATES, notifyStateLimit } from '../lib/editor'
 
 // Define the Components of the Dock
 // Icon Look Constants
@@ -13,6 +13,8 @@ const Dock = () => {
   // Jotai Atoms
   const [editorState, setEditorState] = useAtom(editor_state)
   const [_transitionPairs, setTransitionPairs] = useAtom(transition_pairs)
+  const nodes = useAtomValue(node_list)
+  const atStateLimit = nodes.filter(Boolean).length >= MAX_FSM_STATES
   // Jotai Atoms
 
   const dockItems = [
@@ -46,6 +48,11 @@ const Dock = () => {
       return
     }
 
+    if (item.name === 'Add' && atStateLimit) {
+      notifyStateLimit()
+      return
+    }
+
     if (item.name == 'Connect') setTransitionPairs(null)
     item.name == editorState ? setEditorState(null) : setEditorState(item.name)
   }
@@ -69,7 +76,9 @@ const Dock = () => {
                   ((item.name === 'Move' && editorState === null) || item.name === editorState)
                     ? 'bg-blue-500 text-white'
                     : 'bg-secondary-bg'
-                } text-sm md:text-base px-3 py-2 border border-border-bg rounded-xl cursor-pointer hover:-translate-y-1 hover:scale-105 active:scale-95 transition-all ease-in-out`}
+                } text-sm md:text-base px-3 py-2 border border-border-bg rounded-xl cursor-pointer hover:-translate-y-1 hover:scale-105 active:scale-95 transition-all ease-in-out ${
+                  item.name === 'Add' && atStateLimit ? 'opacity-50' : ''
+                }`}
               >
                 {item.icon}
                 {item.name}

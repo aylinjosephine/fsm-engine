@@ -72,19 +72,8 @@ export const alert = atom('')
 export const show_popup = atom(false)
 export const active_transition = atom(null)
 
-// Store to cache contributors
-export const contributors_data = atom(null)
-
 // Store to disable keyboard shortcuts while dock menus are open
 export const shortcut_context_locked = atom(false)
-
-// Store for Confirm Dialog
-export const confirm_dialog_atom = atom({
-  isOpen: false,
-  message: '',
-  onConfirm: null,
-  onCancel: null,
-})
 
 // Export store provider
 export const store = createStore()

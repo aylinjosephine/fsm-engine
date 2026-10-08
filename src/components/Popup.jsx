@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai'
 import { CircleCheck, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentThemeMode } from '../lib/theme.js'
 import {
   active_transition,
@@ -12,7 +12,7 @@ import {
   transition_list,
 } from '../lib/stores'
 import {
-  findOverlappingTransition,
+  getTransitionConflict,
   handleTransitionSave,
   removeTransitionById,
 } from '../lib/transitions'
@@ -83,14 +83,6 @@ function ChooseTransitionLabel() {
     const inputComplete = isComplete(inputBitsArr, inputBits)
     const outputComplete = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
     if (inputComplete && outputComplete) return ''
-    const hasInvalid = (arr, len) =>
-      arr.slice(0, len).some((bit) => bit !== undefined && bit !== '' && !/^[01-]$/.test(bit))
-    if (
-      hasInvalid(inputBitsArr, inputBits) ||
-      (FsmType !== 'moore' && hasInvalid(outputBitsArr, outputBits))
-    ) {
-      return 'Only the characters 0, 1 or - are allowed.'
-    }
     const parts = []
     if (!inputComplete) parts.push(`${inputBits} input bit${inputBits === 1 ? '' : 's'}`)
     if (!outputComplete) parts.push(`${outputBits} output bit${outputBits === 1 ? '' : 's'}`)
@@ -118,9 +110,24 @@ function ChooseTransitionLabel() {
         handleCancel()
       }
     }
+    // Any close other than an explicit save discards the draft (Escape semantics)
+    const onRequestClose = () => handleCancel()
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showPopup, TransitionList, ActiveTransition])
+    window.addEventListener('fsm-close-popups', onRequestClose)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('fsm-close-popups', onRequestClose)
+    }
+  }, [
+    showPopup,
+    TransitionList,
+    ActiveTransition,
+    inputBitsArr,
+    outputBitsArr,
+    inputBits,
+    outputBits,
+    FsmType,
+  ])
 
   const hasOutput = FsmType !== 'moore'
 
@@ -169,10 +176,7 @@ function ChooseTransitionLabel() {
   function handleBitChange(kind, index, rawValue) {
     let ch = String(rawValue).slice(-1)
     if (ch === 'x' || ch === 'X') ch = '-'
-    if (!/^[01-]$/.test(ch)) {
-      setHint('Only the characters 0, 1 or - are allowed.')
-      return
-    }
+    if (!/^[01-]$/.test(ch)) return
     setInvalidAttempt(false)
     setHint('')
     const setter = kind === 'input' ? setInputBitsArr : setOutputBitsArr
@@ -251,28 +255,29 @@ function ChooseTransitionLabel() {
     store.set(active_transition, null)
   }
 
-  function handleBackdropClick() {
-    if (!showPopup) return
-    const inputOk = isComplete(inputBitsArr, inputBits)
-    const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
-    if (!inputOk || !outputOk) {
-      // Keep the popup open and highlight the empty fields
-      setInvalidAttempt(true)
-      setHint(getValidationHint())
-      return
-    }
-    const persistedInput = inputBitsArr.join('').replace(/-/g, 'x')
-    if (findOverlappingTransition(persistedInput)) {
-      setInvalidAttempt(true)
-      setHint('A transition with this input pattern already exists for this state.')
-      return
-    }
-    if (TransitionList[ActiveTransition]?.isDraft) {
-      removeTransitionById(ActiveTransition)
-    }
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-  }
+  // Check whether this state and input already hold a next state
+  const conflict = useMemo(() => {
+    if (!showPopup) return null
+    const inputComplete = isComplete(inputBitsArr, inputBits)
+    const outputComplete = FsmType === 'moore' || isComplete(outputBitsArr, outputBits)
+    if (!inputComplete || !outputComplete) return null
+    return getTransitionConflict({
+      input: inputBitsArr.join('').replace(/-/g, 'x'),
+      output: FsmType === 'moore' ? '' : outputBitsArr.join('').replace(/-/g, 'x'),
+    })
+  }, [
+    showPopup,
+    inputBitsArr,
+    outputBitsArr,
+    inputBits,
+    outputBits,
+    FsmType,
+    TransitionList,
+    ActiveTransition,
+  ])
+
+  const duplicateBlocked = Boolean(conflict && !conflict.replacesRow)
+  const hintText = conflict?.message ?? hint
 
   function handleSubmit() {
     const input = inputBitsArr.join('')
@@ -287,17 +292,17 @@ function ChooseTransitionLabel() {
       return
     }
 
+    // A row for this state and input already exists and cannot be updated here
+    if (duplicateBlocked) {
+      setHint('')
+      return
+    }
+
     setInvalidAttempt(false)
     setHint('')
     // Persist using 'x' as internal don't-care, convert '-' back to 'x'
     const persistedInput = input.replace(/-/g, 'x')
     const persistedOutput = output.replace(/-/g, 'x')
-    // do not allow saving a transition that would overlap with an existing transition for the same state
-    if (findOverlappingTransition(persistedInput)) {
-      setInvalidAttempt(true)
-      setHint('A transition with this input pattern already exists for this state.')
-      return
-    }
     handleTransitionSave(
       FsmType === 'moore' ? [persistedInput] : [`${persistedInput}/${persistedOutput}`],
     )
@@ -321,9 +326,7 @@ function ChooseTransitionLabel() {
               maxLength={1}
               value={arr[i] ?? ''}
               aria-label={`${label} bit ${i + 1}`}
-              className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                arr[i] === '-' ? 'text-amber-500' : 'text-on-surface'
-              } ${
+              className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 text-on-surface ${
                 invalidAttempt && !(arr[i] ?? '') ? 'border-red-500' : 'border-border-bg'
               } hover:border-surface-3 focus:border-primary`}
               onChange={(e) => handleBitChange(kind, i, e.target.value)}
@@ -337,7 +340,7 @@ function ChooseTransitionLabel() {
 
   return (
     <div
-      onMouseDown={handleBackdropClick}
+      onMouseDown={handleCancel}
       className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
         showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
@@ -352,8 +355,8 @@ function ChooseTransitionLabel() {
         {renderBitRow('input', 'input', inputBits, inputBitsArr, inputRefs)}
         {FsmType !== 'moore' &&
           renderBitRow('output', 'output', outputBits, outputBitsArr, outputRefs)}
-        <p className="min-h-[16px] max-w-[260px] text-[11px] text-red-400 font-github -mt-1 mb-2 text-center select-none">
-          {hint}
+        <p className="min-h-[16px] max-w-[260px] text-[11px] font-github -mt-1 mb-2 text-center select-none text-red-400">
+          {hintText}
         </p>
         <div className="flex gap-3 mt-1">
           <button
@@ -367,7 +370,12 @@ function ChooseTransitionLabel() {
           <button
             type="button"
             onClick={handleSubmit}
-            className="font-github text-sm hover:scale-110 active:scale-100 transition-all ease-in-out text-on-primary bg-primary px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center"
+            disabled={duplicateBlocked}
+            className={`font-github text-sm transition-all ease-in-out text-on-primary bg-primary px-8 py-2 rounded-lg border border-border-bg flex gap-2 items-center ${
+              duplicateBlocked
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:scale-110 active:scale-100'
+            }`}
           >
             <CircleCheck size={18} color="#ffffff" />
             Done

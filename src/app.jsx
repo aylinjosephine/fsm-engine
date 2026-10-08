@@ -3,12 +3,8 @@ import { useEffect } from 'react'
 import Alert from './components/Alert'
 import Dock from './components/Dock'
 import Editor from './components/Editor'
-import Guide from './components/Guide'
 import Popup from './components/Popup'
-import SaveDialog from './components/SaveDialog'
 import Settings from './components/Settings'
-import TopDock from './components/TopDock'
-import ConfirmDialog from './components/ConfirmDialog'
 import { handleShortCuts } from './lib/editor'
 import { node_list, transition_list, show_popup } from './lib/stores'
 import { sendExportToMainState } from './lib/export.js'
@@ -66,6 +62,15 @@ export function App() {
     }
   }, [])
 
+  // A click in the app around the editor closes an open popup (Escape semantics)
+  useEffect(() => {
+    const parentDocument = window.parent?.document
+    if (!parentDocument || parentDocument === document) return
+    const onParentMouseDown = () => window.dispatchEvent(new Event('fsm-close-popups'))
+    parentDocument.addEventListener('mousedown', onParentMouseDown)
+    return () => parentDocument.removeEventListener('mousedown', onParentMouseDown)
+  }, [])
+
   return (
     <div id="body" className="w-full h-full bg-primary-bg overflow-hidden">
       <Editor />
@@ -77,10 +82,6 @@ export function App() {
       <Alert />
 
       <Popup />
-
-      <SaveDialog />
-
-      <ConfirmDialog />
     </div>
   )
 }

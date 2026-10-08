@@ -18,7 +18,7 @@ The main changes were the following:
 - We added the whole export path (mainly in `app.jsx`).
 - We added more attributes of states and transitions, e.g. their coordinates, the fsm type ('mealy' or 'moore'). We disabled some other attributes or ignored them.
 - We changed the way transitions can be edited.
-- We customized the menu by adding the settings and guide button and removing other menus and buttons.
+- We customized the menu by adding the settings and legend button and removing other menus and buttons.
 - We used a flex layout and flexible viewport instead of static (non-)display options.
 
 ## Usage
