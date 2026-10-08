@@ -1,5 +1,5 @@
 import { getLabelPosition, getTransitionPoints } from './editor'
-import { expandDontCares, sendExportToMainState } from './export'
+import { sendExportToMainState } from './export'
 import { addToHistory } from './history'
 import {
   active_transition,
@@ -115,25 +115,6 @@ function getGroupTargetPatterns(transitions, groupIds, bitCount) {
   return Array.from(new Set(patterns))
 }
 
-// Smallest pattern covering all targets, x = don't-care. Returns '' if no targets.
-function getEnclosingPattern(patterns) {
-  if (!patterns.length) return ''
-  const width = Math.max(...patterns.map((pattern) => pattern.length))
-  const padded = patterns.map((pattern) => padBinaryPattern(pattern, width))
-  return Array.from({ length: width }, (_, index) => {
-    const bit = padded[0].charAt(index)
-    return padded.every((pattern) => pattern.charAt(index) === bit) ? bit : 'x'
-  }).join('')
-}
-
-// Targets form one don't-care pattern only when they cover its cube completely
-function getExactCubePattern(patterns) {
-  const cube = getEnclosingPattern(patterns)
-  if (!cube) return null
-  const variants = 2 ** (cube.match(/x/g)?.length ?? 0)
-  return variants === patterns.length ? cube : null
-}
-
 function getNodeNamesForPatterns(nodes, patterns, bitCount) {
   return patterns.map((pattern) => {
     const node = (nodes ?? []).find(
@@ -142,42 +123,6 @@ function getNodeNamesForPatterns(nodes, patterns, bitCount) {
     )
     return node?.name ? String(node.name) : pattern
   })
-}
-
-// Moore targets must show the same output bits, otherwise the merged transition has no single output
-function haveCompatibleMooreOutputs(nodes, patterns, bitCount) {
-  const outputs = getMooreOutputsForPatterns(nodes, patterns, bitCount)
-  if (outputs.length !== patterns.length) return false
-
-  const width = Math.max(0, ...outputs.map((output) => output.length))
-
-  for (let index = 0; index < width; index += 1) {
-    const bits = new Set(outputs.map((output) => output.charAt(index) || 'x'))
-    if (bits.size > 1) return false
-  }
-
-  return true
-}
-
-// Outputs of the states a pattern covers, in the same order as the patterns
-function getMooreOutputsForPatterns(nodes, patterns, bitCount) {
-  return (nodes ?? [])
-    .filter(
-      (node) => node && patterns.includes(Number(node.id).toString(2).padStart(bitCount, '0')),
-    )
-    .map((node) => String(node.moore_output ?? ''))
-}
-
-// One row carries one output: differing bits become don't-care for the minimization
-function mergeOutputPatterns(existingOutput, requestedOutput) {
-  const existing = normalizeBitsPattern(existingOutput)
-  const requested = normalizeBitsPattern(requestedOutput)
-  const width = Math.max(existing.length, requested.length)
-  return Array.from({ length: width }, (_, index) => {
-    const left = existing.charAt(index) || 'x'
-    const right = requested.charAt(index) || 'x'
-    return left === right ? left : 'x'
-  }).join('')
 }
 
 // Keep messages short when a pattern would cover many states
@@ -268,8 +213,8 @@ export function handleTransitionClick(id) {
   store.set(active_transition, () => id)
 }
 
-// checks whether a transition's input pattern overlaps with any other transition from the same source node
-export function getClusterMergeInfo({ input, output = '' } = {}) {
+// Checks whether a row of the same source state already uses this input
+export function getTransitionConflict({ input, output = '' } = {}) {
   const activeTransitionIndex = store.get(active_transition)
   const transitions = store.get(transition_list) ?? []
   const nodes = (store.get(node_list) ?? []).filter(Boolean)
@@ -309,12 +254,9 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   const existingNameList = getNodeNamesForPatterns(nodes, existingTargets, bitCount)
   const existingTargetsPhrase = nextStatePhrase(existingNameList)
   const info = {
-    mergeable: false,
-    cube: null,
     groupId: overlappingGroupId,
     input: existingInput,
     output: existingOutput,
-    targets: existingTargets,
   }
 
   // Only a pattern of the new transition itself can "cover" several existing rows
@@ -331,7 +273,7 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   if (!activeTransition.isDraft) {
     return {
       ...info,
-      message: `This input already maps to ${existingTargetsPhrase} - combine both targets in the state table.`,
+      message: `This input already maps to ${existingTargetsPhrase} - one row holds one next state.`,
     }
   }
 
@@ -343,9 +285,6 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
   }
 
   const draftPattern = toBinaryPattern(activeTransition.to, bitCount)
-  const draftName =
-    getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0] ?? showPattern(draftPattern)
-  const draftPhrase = nextStatePhrase([draftName])
 
   if (requestedInput !== existingInput) {
     // Name the direction the pattern covers, otherwise the hint points at the wrong input
@@ -376,57 +315,28 @@ export function getClusterMergeInfo({ input, output = '' } = {}) {
     }
   }
 
-  // One row per state and input: the edit may change the target and the output of that row
+  // One row per state and input: the only allowed edit updates the values of that row
   if (existingTargets.includes(draftPattern)) {
+    const draftName =
+      getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0] ?? showPattern(draftPattern)
+
     if (requestedOutput === existingOutput) {
       return {
         ...info,
-        message: `This input already maps to ${draftPhrase} - nothing would change.`,
+        message: `This input already maps to ${nextStatePhrase([draftName])} - nothing would change.`,
       }
     }
 
     return {
       ...info,
-      mergeable: true,
       replacesRow: true,
-      cube: draftPattern,
       output: requestedOutput,
     }
   }
 
-  const targets = Array.from(new Set([...existingTargets, draftPattern]))
-  const enclosing = getEnclosingPattern(targets)
-  const cube = getExactCubePattern(targets)
-
-  if (!cube) {
-    const differing = (enclosing.match(/x/g) ?? []).length
-    const extraNames = formatNodeNames(
-      getNodeNamesForPatterns(
-        nodes,
-        expandDontCares(enclosing).filter((pattern) => !targets.includes(pattern)),
-        bitCount,
-      ),
-    )
-    return {
-      ...info,
-      message: `${formatNodeNames([...existingNameList, draftName])} differ in ${differing} bits; "${showPattern(enclosing)}" would also cover ${extraNames}.`,
-    }
-  }
-
-  if (isMooreMode() && !haveCompatibleMooreOutputs(nodes, targets, bitCount)) {
-    const nameList = formatNodeNames(getNodeNamesForPatterns(nodes, targets, bitCount))
-    return {
-      ...info,
-      message: `${nameList} must show the same output - in Moore the output belongs to the state.`,
-    }
-  }
-
-  const mergedOutput = isMooreMode() ? '' : mergeOutputPatterns(existingOutput, requestedOutput)
   return {
     ...info,
-    output: mergedOutput,
-    mergeable: true,
-    cube,
+    message: `This input already maps to ${existingTargetsPhrase} - one row holds one next state.`,
   }
 }
 
@@ -465,54 +375,52 @@ export function handleTransitionSave(labels) {
   const nextInput = getInputFromLabel(nextLabel)
   const nextOutput = getOutputFromLabel(nextLabel)
   const allTransitions = store.get(transition_list) ?? []
-  const handleHiddenDontCareTransitions = true
 
   // check whether any of the new labels overlap with existing transitions from the same source node
   const nextInputs = stringLabels.map((label) => getInputFromLabel(label))
   const overlapsAnyLabel = (pattern) =>
     nextInputs.some((nextInput) => patternsOverlap(nextInput, pattern))
 
-  const overlappingHiddenIds = handleHiddenDontCareTransitions
-    ? allTransitions
-        .map((transition, index) =>
-          transition &&
-          transition.from === src_node &&
-          transition.hiddenDontCare &&
-          overlapsAnyLabel(getInputFromLabel(transition.label))
-            ? index
-            : -1,
-        )
-        .filter((id) => id >= 0)
-    : []
+  // Rows with a don't-care next state are not drawn, so a new transition takes their place
+  const overlappingHiddenIds = allTransitions
+    .map((transition, index) =>
+      transition &&
+      transition.from === src_node &&
+      transition.hiddenDontCare &&
+      overlapsAnyLabel(getInputFromLabel(transition.label))
+        ? index
+        : -1,
+    )
+    .filter((id) => id >= 0)
 
   const duplicateExists = allTransitions.some((transition, index) => {
     if (!transition || index === active_tr) return false
     if (transition.from !== src_node) return false
     if (getTransitionGroupId(transition) === groupId) return false
-    // ignore hidden don't-care transitions for the purpose of duplication checks
-    if (handleHiddenDontCareTransitions && transition.hiddenDontCare) return false
+    // Hidden rows are not drawn, so they never block a new transition
+    if (transition.hiddenDontCare) return false
     // leftover rows from another bit width must not block the new transition
     if (hasStaleInput(transition.label)) return false
     return overlapsAnyLabel(getInputFromLabel(transition.label))
   })
 
   if (duplicateExists) {
-    const mergeInfo = getClusterMergeInfo({ input: nextInput, output: moore ? '' : nextOutput })
+    const conflict = getTransitionConflict({ input: nextInput, output: moore ? '' : nextOutput })
 
     // Same target: the drawn transition replaces the values of the existing row
-    if (activeTransition.isDraft && mergeInfo?.mergeable && mergeInfo.replacesRow) {
-      const replacedGroupId = mergeInfo.groupId
+    if (activeTransition.isDraft && conflict?.replacesRow) {
+      const replacedGroupId = conflict.groupId
       addToHistory()
       store.set(transition_list, (old) =>
         old.map((transition) =>
           transition && getTransitionGroupId(transition) === replacedGroupId
             ? {
                 ...transition,
-                label: moore ? mergeInfo.input : `${mergeInfo.input}/${mergeInfo.output}`,
-                input: mergeInfo.input,
-                output: moore ? '' : mergeInfo.output,
-                mealyOutput: moore ? undefined : mergeInfo.output,
-                mealy_output: moore ? undefined : mergeInfo.output,
+                label: moore ? conflict.input : `${conflict.input}/${conflict.output}`,
+                input: conflict.input,
+                output: moore ? '' : conflict.output,
+                mealyOutput: moore ? undefined : conflict.output,
+                mealy_output: moore ? undefined : conflict.output,
                 hiddenDontCare: false,
                 isDraft: false,
               }
@@ -521,33 +429,6 @@ export function handleTransitionSave(labels) {
       )
       // Drop the draft, so the state and input keep exactly one arrow
       removeTransitionById(active_tr)
-      store.set(show_popup, false)
-      store.set(active_transition, null)
-      sendExportToMainState()
-      return
-    }
-
-    // One input carries one next-state pattern: add the draft as a second cluster target
-    if (activeTransition.isDraft && mergeInfo?.mergeable) {
-      addToHistory()
-      store.set(transition_list, (old) => {
-        const newTrList = [...old]
-        const draft = newTrList[active_tr]
-        if (!draft) return newTrList
-        newTrList[active_tr] = {
-          ...draft,
-          groupId: mergeInfo.groupId,
-          label: moore ? mergeInfo.input : `${mergeInfo.input}/${mergeInfo.output}`,
-          input: mergeInfo.input,
-          output: moore ? '' : mergeInfo.output,
-          mealyOutput: moore ? undefined : mergeInfo.output,
-          mealy_output: moore ? undefined : mergeInfo.output,
-          hiddenDontCare: false,
-          isDraft: false,
-        }
-        return newTrList
-      })
-
       store.set(show_popup, false)
       store.set(active_transition, null)
       sendExportToMainState()
@@ -565,12 +446,8 @@ export function handleTransitionSave(labels) {
   addToHistory()
   store.set(show_popup, false)
 
-  // if  a draft transition "overlaps" with hidden don't-care transitions, update those instead of removing the draft
-  if (
-    handleHiddenDontCareTransitions &&
-    activeTransition.isDraft &&
-    overlappingHiddenIds.length > 0
-  ) {
+  // A draft that overlaps hidden rows updates those rows instead of adding another one
+  if (activeTransition.isDraft && overlappingHiddenIds.length > 0) {
     const nodesMap = store.get(node_list) ?? []
     const existing = store.get(transition_list) ?? []
     const updated = [...existing]

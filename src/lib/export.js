@@ -103,87 +103,40 @@ function normalizeToBinaryIdPattern(pattern, bitCount) {
   return normalizePatternBits(pattern, bitCount, 'x', 'left')
 }
 
-/**
- * CUSTOM: compress a list of binary patterns (0/1 strings) into a smaller set
- * of patterns containing 'x' where possible by iteratively merging pairs that
- * differ in exactly one bit. This helps the editor display compact
- * transitions (e.g. 001 and 011 -> 0x1) while preserving grouping via groupId.
- */
-function compressBinaryPatterns(patterns) {
-  // work on unique patterns
-  let set = Array.from(new Set(patterns.filter((p) => typeof p === 'string')))
-  if (!set.length) return []
-
-  const mergeTwo = (a, b) => {
-    if (a.length !== b.length) return null
-    let diffCount = 0
-    const chars = []
-    for (let i = 0; i < a.length; i++) {
-      const ca = a.charAt(i)
-      const cb = b.charAt(i)
-      if (ca === cb) {
-        chars.push(ca)
-        continue
-      }
-      // if either is 'x', result is 'x' at this pos, don't count as concrete difference
-      if (ca === 'x' || cb === 'x') {
-        chars.push('x')
-        continue
-      }
-      // both are concrete but different
-      diffCount += 1
-      if (diffCount > 1) return null
-      chars.push('x')
-    }
-    return diffCount === 1 ? chars.join('') : null
-  }
-
-  let changed = true
-  while (changed) {
-    changed = false
-    const used = new Array(set.length).fill(false)
-    const next = []
-
-    for (let i = 0; i < set.length; i++) {
-      if (used[i]) continue
-      let merged = false
-      for (let j = i + 1; j < set.length; j++) {
-        if (used[j]) continue
-        const m = mergeTwo(set[i], set[j])
-        if (m) {
-          next.push(m)
-          used[i] = true
-          used[j] = true
-          merged = true
-          changed = true
-          break
-        }
-      }
-      if (!merged && !used[i]) {
-        next.push(set[i])
-      }
-    }
-
-    // remove duplicates
-    set = Array.from(new Set(next))
-  }
-
-  return set
-}
-
 function getTransitionGroupKey(transition) {
   return transition?.groupId ?? transition?.id ?? 0
 }
 
-function getTransitionTargetPattern(transition, nodeBitCount, definedNodes) {
-  if (typeof transition?.toBinaryId === 'string') {
-    return normalizePatternBits(transition.toBinaryId, nodeBitCount, 'x', 'left')
-  }
+// Re-encode a pattern over the node ids it means, so a changed bit width keeps the targets
+function remapPatternToNodeIds(pattern, nodeBitCount, definedNodes) {
+  const stored = String(pattern ?? '').replace(/-/g, 'x')
+  const coveredIds = expandDontCares(stored)
+    .map((bits) => parseInt(bits, 2))
+    .filter((id) => Number.isFinite(id))
 
+  const allKnown =
+    coveredIds.length > 0 &&
+    coveredIds.every((id) => definedNodes.some((node) => Number(node?.id) === id))
+
+  // Patterns with a missing target keep their encoding, so the table still reports the problem
+  if (!allKnown) return normalizePatternBits(stored, nodeBitCount, 'x', 'left')
+
+  return mergeBitPatterns(
+    coveredIds.map((id) => Number(id).toString(2).padStart(nodeBitCount, '0')),
+    nodeBitCount,
+  )
+}
+
+function getTransitionTargetPattern(transition, nodeBitCount, definedNodes) {
+  // A resolved target names one node, so its id decides the pattern, not the stored width
   if (Number.isFinite(transition?.to) && transition.to >= 0) {
     const nodeBinary = Number(transition.to).toString(2).padStart(nodeBitCount, '0')
     const resolved = resolveNodeIdByBinary(definedNodes, nodeBinary, nodeBitCount)
     return resolved >= 0 ? nodeBinary : 'x'.repeat(nodeBitCount)
+  }
+
+  if (typeof transition?.toBinaryId === 'string' && transition.toBinaryId.length > 0) {
+    return remapPatternToNodeIds(transition.toBinaryId, nodeBitCount, definedNodes)
   }
 
   return 'x'.repeat(nodeBitCount)
@@ -560,15 +513,17 @@ export function extractFsmData() {
   const definedNodes = nodes.filter(Boolean)
   const fsmType = store.get(fsm_type) ?? 'mealy'
 
-  // hidden don't-care transitions that are not rendered might exist in the editor andmust be preserved for export.
+  // Hidden rows are not drawn, but a partial pattern or a Mealy output must survive the roundtrip
   const carriesOutput = (transition) =>
     fsmType !== 'moore' &&
     !/^x+$/.test(String(transition?.output ?? transition?.mealy_output ?? '').replace(/-/g, 'x'))
+  const carriesNextState = (transition) =>
+    /[01]/.test(String(transition?.toBinaryId ?? '').replace(/-/g, 'x'))
   const transitions = (store.get(transition_list) ?? []).filter(
     (transition) =>
       transition &&
       !transition.isDraft &&
-      (!transition.hiddenDontCare || carriesOutput(transition)),
+      (!transition.hiddenDontCare || carriesNextState(transition) || carriesOutput(transition)),
   )
   const visibleTransitions = collapseTransitionsForExport(transitions, definedNodes)
   const visibleTransitionIds = new Set(visibleTransitions.map((t) => t.id))
@@ -690,61 +645,14 @@ window.addEventListener('message', (event) => {
   const renderableTransitions = []
   preservedTransitions = []
 
-  if (false && isMoore) {
-  } else {
-    const mergedTransitions = (() => {
-      const grouped = new Map()
+  const mergedTransitions = (() => {
+    const grouped = new Map()
 
-      transitions.forEach((transition) => {
-        const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
-        const baseLabelOutput = isMoore
-          ? ''
-          : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
-        const targetPattern = normalizePatternBits(
-          transition.toBinaryId ??
-            (transition.to >= 0
-              ? Number(transition.to).toString(2).padStart(nodeBitCount, '0')
-              : ''),
-          nodeBitCount,
-          'x',
-          'left',
-        )
-        const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
-        const existing = grouped.get(key) || {
-          transition,
-          inputs: [],
-          baseLabelOutput,
-          targetPattern,
-        }
-
-        existing.inputs.push(baseLabelInput)
-        grouped.set(key, existing)
-      })
-
-      return Array.from(grouped.values()).map((entry) => {
-        const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
-        const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
-        return {
-          ...entry.transition,
-          input: mergedInput,
-          output: entry.baseLabelOutput,
-          mealy_output: entry.baseLabelOutput,
-          toBinaryId: entry.targetPattern,
-        }
-      })
-    })()
-
-    mergedTransitions.forEach((transition) => {
+    transitions.forEach((transition) => {
       const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
       const baseLabelOutput = isMoore
         ? ''
         : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
-      const normalizedLabel =
-        typeof transition.label === 'string'
-          ? transition.label.replace(/-/g, 'x')
-          : isMoore
-            ? baseLabelInput
-            : `${baseLabelInput}/${baseLabelOutput}`
       const targetPattern = normalizePatternBits(
         transition.toBinaryId ??
           (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
@@ -752,93 +660,106 @@ window.addEventListener('message', (event) => {
         'x',
         'left',
       )
-      /*
-      All don't-care next-state bits mean "any next state is allowed". This is used for minimization.
-      Therefore, such a row is never drawn, because, otherwise every auto-generated don't-care row would
-      flood the canvas with an arrow to each state. This is a special case to (hopefully)optimize the ui/ux.
-      */
-      const isHiddenDontCare = /^x+$/.test(targetPattern)
+      const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
+      const existing = grouped.get(key) || {
+        transition,
+        inputs: [],
+        baseLabelOutput,
+        targetPattern,
+      }
 
-      if (isHiddenDontCare) {
+      existing.inputs.push(baseLabelInput)
+      grouped.set(key, existing)
+    })
+
+    return Array.from(grouped.values()).map((entry) => {
+      const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
+      const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
+      return {
+        ...entry.transition,
+        input: mergedInput,
+        output: entry.baseLabelOutput,
+        mealy_output: entry.baseLabelOutput,
+        toBinaryId: entry.targetPattern,
+      }
+    })
+  })()
+
+  mergedTransitions.forEach((transition) => {
+    const baseLabelInput = String(transition.input ?? '').replace(/-/g, 'x')
+    const baseLabelOutput = isMoore
+      ? ''
+      : String(transition.output ?? transition.mealy_output ?? '').replace(/-/g, 'x')
+    const normalizedLabel =
+      typeof transition.label === 'string'
+        ? transition.label.replace(/-/g, 'x')
+        : isMoore
+          ? baseLabelInput
+          : `${baseLabelInput}/${baseLabelOutput}`
+    const targetPattern = normalizePatternBits(
+      transition.toBinaryId ??
+        (transition.to >= 0 ? Number(transition.to).toString(2).padStart(nodeBitCount, '0') : ''),
+      nodeBitCount,
+      'x',
+      'left',
+    )
+    // A don't-care in the next state covers several states, so the row has no unique target to draw
+    const isHiddenDontCare = /x/.test(targetPattern)
+
+    if (isHiddenDontCare) {
+      renderableTransitions.push({
+        ...transition,
+        id: nextTransitionId++,
+        groupId: transition.groupId ?? transition.id ?? 0,
+        toBinaryId: targetPattern,
+        input: baseLabelInput,
+        output: baseLabelOutput,
+        mealy_output: baseLabelOutput,
+        label: normalizedLabel,
+        isDraft: false,
+        hiddenDontCare: true,
+      })
+      return
+    }
+
+    // The bits name the target state; the row may carry them without a resolved node
+    const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+    const resolvedTo = resolveNodeIdByBinary(nodeAtoms, targetPattern, nodeBitCount)
+
+    if (fromExists && resolvedTo >= 0) {
+      renderableTransitions.push({
+        ...transition,
+        id: nextTransitionId++,
+        groupId: transition.groupId ?? transition.id ?? 0,
+        to: resolvedTo,
+        toBinaryId: targetPattern,
+        input: baseLabelInput,
+        output: baseLabelOutput,
+        mealy_output: baseLabelOutput,
+        label: normalizedLabel,
+        isDraft: false,
+        hiddenDontCare: false,
+      })
+      return
+    }
+
+    if (shouldRenderTransition(transition)) {
+      const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
+      const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
+      if (fromExists && toExists) {
         renderableTransitions.push({
           ...transition,
           id: nextTransitionId++,
           groupId: transition.groupId ?? transition.id ?? 0,
-          toBinaryId: targetPattern,
-          input: baseLabelInput,
-          output: baseLabelOutput,
-          mealy_output: baseLabelOutput,
+          hiddenDontCare: false,
           label: normalizedLabel,
-          isDraft: false,
-          hiddenDontCare: true,
         })
         return
       }
+    }
 
-      // a transition with a don't-care target pattern may resolve to multiple concrete targets
-      // therefore we render each as a separate transition if possible
-      const concreteTargets = expandDontCares(targetPattern)
-
-      if (concreteTargets.length > 0) {
-        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-        if (fromExists) {
-          // Group concrete targets by resolved target node id (same z^{n+1})
-          const targetsByResolved = new Map()
-          concreteTargets.forEach((binaryTarget) => {
-            const resolvedTo = resolveNodeIdByBinary(nodeAtoms, binaryTarget, nodeBitCount)
-            if (resolvedTo < 0) return
-            const key = String(resolvedTo)
-            const arr = targetsByResolved.get(key) || []
-            arr.push(binaryTarget)
-            targetsByResolved.set(key, arr)
-          })
-
-          // If any concrete targets resolve to a valid node, render them as separate transitions.
-          if (targetsByResolved.size > 0) {
-            targetsByResolved.forEach((binaryList, resolvedKey) => {
-              // compress binaryList into merged patterns where possible (e.g. 001 + 011 -> 0x1)
-              const merged = compressBinaryPatterns(binaryList)
-              merged.forEach((pattern) => {
-                renderableTransitions.push({
-                  ...transition,
-                  id: nextTransitionId++,
-                  groupId: transition.groupId ?? transition.id ?? 0,
-                  from: transition.from,
-                  to: Number(resolvedKey),
-                  toBinaryId: pattern,
-                  input: baseLabelInput,
-                  output: baseLabelOutput,
-                  mealy_output: baseLabelOutput,
-                  label: normalizedLabel,
-                  isDraft: false,
-                  hiddenDontCare: false,
-                })
-              })
-            })
-
-            return
-          }
-        }
-      }
-
-      if (shouldRenderTransition(transition)) {
-        const fromExists = nodeAtoms.some((n) => n && n.id === transition.from)
-        const toExists = nodeAtoms.some((n) => n && n.id === transition.to)
-        if (fromExists && toExists) {
-          renderableTransitions.push({
-            ...transition,
-            id: nextTransitionId++,
-            groupId: transition.groupId ?? transition.id ?? 0,
-            hiddenDontCare: false,
-            label: normalizedLabel,
-          })
-          return
-        }
-      }
-
-      preservedTransitions.push(transition)
-    })
-  }
+    preservedTransitions.push(transition)
+  })
 
   attachTransitionsToNodes(nodeAtoms, renderableTransitions)
 
@@ -929,6 +850,13 @@ export function clearFsmFromParent() {
 // Reset the editor state when the parent requests it
 window.addEventListener('message', (event) => {
   if (!isTrustedParentMessage(event)) return
+
+  // The app opened another overlay (legend/popup): let the open popup close itself
+  if (event.data?.action === 'close-popups') {
+    window.dispatchEvent(new Event('fsm-close-popups'))
+    return
+  }
+
   if (event.data?.action !== 'fsm-reset') return
   updateFromState = true
   clearFsmFromParent()
