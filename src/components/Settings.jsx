@@ -66,8 +66,14 @@ const Settings = () => {
         handleSave()
       }
     }
+    // Any close other than an explicit save discards the draft (Escape semantics)
+    const onRequestClose = () => handleCancel()
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('fsm-close-popups', onRequestClose)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('fsm-close-popups', onRequestClose)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     editorState,
@@ -203,12 +209,7 @@ const Settings = () => {
     return `Please fill in ${outputBitCount} output bit${outputBitCount === 1 ? '' : 's'}.`
   }
 
-  // Clicking outside submits the popup, an invalid draft keeps it open
-  function handleBackdropClick() {
-    handleSave()
-  }
-
-  // An invalid draft can never be submitted, only Escape/Cancel leaves the popup
+  // Saving is only ever explicit (Enter or Save) and only for a valid draft
   function handleSave() {
     if (!canSubmit) return
     const name = sanitizeStateName(stateName)
@@ -237,7 +238,7 @@ const Settings = () => {
 
   return (
     <div
-      onMouseDown={handleBackdropClick}
+      onMouseDown={handleCancel}
       className={`absolute top-0 left-0 w-screen h-screen z-20 flex justify-center items-center bg-secondary-bg/30 ${
         editorState !== 'settings' && 'hidden'
       }`}
@@ -303,9 +304,7 @@ const Settings = () => {
                   maxLength={1}
                   value={mooreBits[i] ?? ''}
                   aria-label={`state output bit ${i + 1}`}
-                  className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 ${
-                    mooreBits[i] === '-' ? 'text-amber-500' : 'text-on-surface'
-                  } ${
+                  className={`w-7 h-9 text-center bg-surface-1 border rounded-lg outline-none font-mono text-sm transition-colors duration-100 text-on-surface ${
                     !(mooreBits[i] ?? '') ? 'border-red-500' : 'border-border-bg'
                   } hover:border-surface-3 focus:border-primary`}
                   onChange={(e) => handleMooreBitChange(i, e.target.value)}

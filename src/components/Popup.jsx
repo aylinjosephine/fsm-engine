@@ -110,9 +110,24 @@ function ChooseTransitionLabel() {
         handleCancel()
       }
     }
+    // Any close other than an explicit save discards the draft (Escape semantics)
+    const onRequestClose = () => handleCancel()
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showPopup, TransitionList, ActiveTransition])
+    window.addEventListener('fsm-close-popups', onRequestClose)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('fsm-close-popups', onRequestClose)
+    }
+  }, [
+    showPopup,
+    TransitionList,
+    ActiveTransition,
+    inputBitsArr,
+    outputBitsArr,
+    inputBits,
+    outputBits,
+    FsmType,
+  ])
 
   const hasOutput = FsmType !== 'moore'
 
@@ -264,27 +279,6 @@ function ChooseTransitionLabel() {
   const duplicateBlocked = Boolean(conflict && !conflict.replacesRow)
   const hintText = conflict?.message ?? hint
 
-  function handleBackdropClick() {
-    if (!showPopup) return
-    const inputOk = isComplete(inputBitsArr, inputBits)
-    const outputOk = FsmType === 'moore' ? true : isComplete(outputBitsArr, outputBits)
-    if (!inputOk || !outputOk) {
-      // Keep the popup open and highlight the empty fields
-      setInvalidAttempt(true)
-      setHint(getValidationHint())
-      return
-    }
-    if (duplicateBlocked) {
-      setHint('')
-      return
-    }
-    if (TransitionList[ActiveTransition]?.isDraft) {
-      removeTransitionById(ActiveTransition)
-    }
-    store.set(show_popup, false)
-    store.set(active_transition, null)
-  }
-
   function handleSubmit() {
     const input = inputBitsArr.join('')
     const output = outputBitsArr.join('')
@@ -346,7 +340,7 @@ function ChooseTransitionLabel() {
 
   return (
     <div
-      onMouseDown={handleBackdropClick}
+      onMouseDown={handleCancel}
       className={`absolute inset-0 z-50 flex justify-center pt-12 transition-opacity ease-in-out duration-300 ${
         showPopup ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
