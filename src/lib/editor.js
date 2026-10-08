@@ -6,7 +6,6 @@
 
 import dagre from 'dagre'
 import Konva from 'konva'
-import { STATE_RADIUS } from './constants'
 import { sendExportToMainState } from './export'
 import { addToHistory, clearHistory } from './history'
 import {
@@ -31,6 +30,13 @@ export const MAX_FSM_STATES = 16
 export function notifyStateLimit() {
   store.set(alert, `At most ${MAX_FSM_STATES} states are allowed.`)
   setTimeout(() => store.set(alert, ''), 2500)
+}
+
+// The editor is a view: it never mints ids or names, it asks the app and renders the sync
+function sendToParent(message) {
+  // Standalone (no host) has no central state to ask
+  if (window.parent === window) return
+  window.parent.postMessage(message, window.location.origin)
 }
 
 function getNodeBitCount(nodes) {
@@ -193,31 +199,9 @@ export function HandleEditorClick(e) {
       return
     }
 
+    // The app owns state ids and names; it creates the state and syncs it back
     const clickPos = group.getRelativePointerPosition()
-
-    let circle_id = store.get(node_list).length
-
-    if (store.get(deleted_nodes).length > 0) {
-      // Check if a deleted state id is available
-      circle_id = store.get(deleted_nodes)[0]
-      store.set(deleted_nodes, (prev) => {
-        const next = [...prev]
-        next.shift()
-        return next
-      })
-    }
-
-    const circle = makeCircle(clickPos, circle_id)
-    const nodes_copy = store.get(node_list).slice()
-
-    if (circle_id !== nodes_copy.length) {
-      nodes_copy[circle_id] = circle
-    } else {
-      nodes_copy.push(circle)
-    }
-
-    store.set(node_list, (_prev) => nodes_copy) // Update Node List
-    addToHistory()
+    sendToParent({ action: 'add-state-request', x: clickPos.x, y: clickPos.y })
   }
 }
 
@@ -247,10 +231,9 @@ export function HandleStateClick(e, id) {
     return
   }
 
-  const clickedNode = store.get(stage_ref).findOne(`#state_${id}`)
-
   if (store.get(editor_state) === 'Remove') {
-    removeState(id, clickedNode)
+    // The app removes the state together with its edges, then syncs the remaining graph back
+    sendToParent({ action: 'remove-state-request', id })
     return
   }
 
@@ -436,43 +419,14 @@ export function handleShortCuts(key) {
       return
     }
 
-    let circleId = store.get(node_list).length
-    if (store.get(deleted_nodes).length > 0) {
-      circleId = store.get(deleted_nodes)[0]
-      store.set(deleted_nodes, (prev) => {
-        const next = [...prev]
-        next.shift()
-        return next
-      })
-    }
-
     const existing = store.get(node_list).filter(Boolean)
     const nextIndex = existing.length
     const col = nextIndex % 6
     const row = Math.floor(nextIndex / 6)
-    const baseX = 150
-    const baseY = 120
-    const dx = 140
-    const dy = 160
 
-    const circle = makeCircle(
-      {
-        x: baseX + col * dx,
-        y: baseY + row * dy,
-      },
-      circleId,
-    )
-
-    const nodesCopy = store.get(node_list).slice()
-    if (circleId !== nodesCopy.length) {
-      nodesCopy[circleId] = circle
-    } else {
-      nodesCopy.push(circle)
-    }
-
-    store.set(node_list, () => nodesCopy)
+    // The app owns state ids and names; it creates the state and syncs it back
+    sendToParent({ action: 'add-state-request', x: 150 + col * 140, y: 120 + row * 160 })
     store.set(editor_state, () => 'Add')
-    addToHistory()
     return
   }
 
@@ -489,99 +443,6 @@ export function handleShortCuts(key) {
 }
 
 /************** HELPER FUNCTIONS ***************/
-/*
- * This function takes the x,y position of the circle and
- * returns a circle object that can be added to node_list as a state
- */
-function makeCircle(position, id) {
-  const x = position.x
-  const y = position.y
-  const isMoore = store.get(fsm_type) === 'moore'
-
-  const circle = {
-    id: id,
-    x: x,
-    y: y,
-    name: `q${id}`,
-    fill: '#4a6fae88',
-    radius: STATE_RADIUS,
-    // The initial state is only chosen explicitly in the state options
-    type: {
-      initial: false,
-      intermediate: true,
-    },
-    moore_output: isMoore ? 'x' : '',
-    transitions: [], // This will have the object {from: num,to: num, label: string}
-  }
-  return circle
-}
-
-function removeState(id, clickedNode) {
-  const nodes = store.get(node_list) ?? []
-  const transitions = store.get(transition_list) ?? []
-  const state = nodes[id]
-
-  if (!state) return
-
-  if (id === store.get(current_selected)) store.set(current_selected, () => null)
-
-  clickedNode?.destroy()
-
-  const connectedTransitionIds = new Set(
-    transitions
-      .filter((transition) => transition && (transition.from === id || transition.to === id))
-      .map((transition) => transition.id),
-  )
-
-  connectedTransitionIds.forEach((transitionId) => {
-    const transitionShape = store.get(stage_ref).findOne(`#tr_${transitionId}`)
-    transitionShape?.destroy()
-  })
-
-  store.set(transition_list, (prev) => {
-    const nextTransitions = [...prev]
-    connectedTransitionIds.forEach((transitionId) => {
-      nextTransitions[transitionId] = undefined
-    })
-    return nextTransitions
-  })
-
-  store.set(node_list, (prev) => {
-    const nextNodes = [...prev]
-
-    nextNodes.forEach((node, nodeId) => {
-      if (!node) return
-
-      if (nodeId === id) {
-        nextNodes[nodeId] = undefined
-        return
-      }
-
-      nextNodes[nodeId] = {
-        ...node,
-        transitions: node.transitions.filter(
-          (transition) => !connectedTransitionIds.has(transition.id),
-        ),
-      }
-    })
-
-    return nextNodes
-  })
-
-  store.set(deleted_nodes, (prev) => {
-    if (prev.includes(id)) return prev
-    const nextDeleted = [...prev, id]
-    nextDeleted.sort((left, right) => left - right)
-    return nextDeleted
-  })
-
-  if (store.get(initial_state) === id) {
-    store.set(initial_state, (_) => null)
-  }
-
-  addToHistory()
-  sendExportToMainState()
-}
 
 function getNextTransitionId() {
   const transitions = store.get(transition_list) ?? []
