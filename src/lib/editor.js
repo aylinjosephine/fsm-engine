@@ -201,8 +201,9 @@ export function HandleEditorClick(e) {
       // Check if a deleted state id is available
       circle_id = store.get(deleted_nodes)[0]
       store.set(deleted_nodes, (prev) => {
-        prev.shift()
-        return prev
+        const next = [...prev]
+        next.shift()
+        return next
       })
     }
 
@@ -846,7 +847,9 @@ export function HandleAutoLayout() {
   // Add edges to the graph.
   transitions.forEach((tr) => {
     if (!tr) return
-    if (tr.from == null || tr.to == null) return
+    // Hidden don't-care rows have no target state and would add a phantom node to the layout
+    if (tr.hiddenDontCare) return
+    if (tr.from == null || tr.to == null || tr.to < 0) return
 
     g.setEdge(`${tr.from}`, `${tr.to}`)
   })
@@ -913,54 +916,59 @@ export function HandleAutoLayout() {
     scaleY: scale,
   }).play()
 
-  // Animate nodes
+  // animate nodes that are actually drawn
+  const tweenIds = validNodeIds.filter((id) => finalPositions[id] && stage.findOne(`#state_${id}`))
   let completed = 0
-  const total = validNodeIds.length
+  const total = tweenIds.length
 
-  validNodeIds.forEach((id) => {
-    const nodeShape = stage.findOne(`#state_${id}`)
-    if (!nodeShape) return
+  const commitLayout = () => {
+    // Sync store after animation
+    const newNodes = [...nodes]
 
-    const target = finalPositions[id]
-    if (!target) return
+    validNodeIds.forEach((nid) => {
+      if (newNodes[nid] && finalPositions[nid]) {
+        newNodes[nid].x = finalPositions[nid].x
+        newNodes[nid].y = finalPositions[nid].y
+      }
+    })
 
-    new Konva.Tween({
-      node: nodeShape,
-      duration: 0.5,
-      easing: Konva.Easings.EaseInOut,
-      x: target.x,
-      y: target.y,
-      onFinish: () => {
-        completed++
+    store.set(node_list, () => newNodes)
 
-        if (completed === total) {
-          // Sync store after animation
+    // Recalculate transitions safely
+    const newTransitions = [...transitions]
 
-          const newNodes = [...nodes]
+    newTransitions.forEach((tr, i) => {
+      if (!tr) return
+      const points = getTransitionPoints(tr.from, tr.to, tr.id)
+      newTransitions[i].points = points
+    })
 
-          validNodeIds.forEach((nid) => {
-            if (newNodes[nid] && finalPositions[nid]) {
-              newNodes[nid].x = finalPositions[nid].x
-              newNodes[nid].y = finalPositions[nid].y
-            }
-          })
+    store.set(transition_list, () => newTransitions)
+  }
 
-          store.set(node_list, () => newNodes)
+  if (total === 0) {
+    commitLayout()
+  } else {
+    tweenIds.forEach((id) => {
+      const nodeShape = stage.findOne(`#state_${id}`)
+      const target = finalPositions[id]
 
-          // Recalculate transitions safely
-          const newTransitions = [...transitions]
+      new Konva.Tween({
+        node: nodeShape,
+        duration: 0.5,
+        easing: Konva.Easings.EaseInOut,
+        x: target.x,
+        y: target.y,
+        onFinish: () => {
+          completed++
 
-          newTransitions.forEach((tr, i) => {
-            if (!tr) return
-            const points = getTransitionPoints(tr.from, tr.to, tr.id)
-            newTransitions[i].points = points
-          })
-
-          store.set(transition_list, () => newTransitions)
-        }
-      },
-    }).play()
-  })
+          if (completed === total) {
+            commitLayout()
+          }
+        },
+      }).play()
+    })
+  }
 
   // Live animation loop for arrows
   const layer = stage.findOne('Layer') || stage
