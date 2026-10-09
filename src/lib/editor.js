@@ -32,9 +32,9 @@ export function notifyStateLimit() {
   setTimeout(() => store.set(alert, ''), 2500)
 }
 
-// The editor is a view: it never mints ids or names, it asks the app and renders the sync
+// The editor asks the app for state changes
 function sendToParent(message) {
-  // Standalone (no host) has no central state to ask
+  // Nothing to ask without a host
   if (window.parent === window) return
   window.parent.postMessage(message, window.location.origin)
 }
@@ -199,7 +199,7 @@ export function HandleEditorClick(e) {
       return
     }
 
-    // The app owns state ids and names; it creates the state and syncs it back
+    // The app creates the state and syncs it back
     const clickPos = group.getRelativePointerPosition()
     sendToParent({ action: 'add-state-request', x: clickPos.x, y: clickPos.y })
   }
@@ -232,7 +232,7 @@ export function HandleStateClick(e, id) {
   }
 
   if (store.get(editor_state) === 'Remove') {
-    // The app removes the state together with its edges, then syncs the remaining graph back
+    // The app removes the state and syncs the rest back
     sendToParent({ action: 'remove-state-request', id })
     return
   }
@@ -424,7 +424,7 @@ export function handleShortCuts(key) {
     const col = nextIndex % 6
     const row = Math.floor(nextIndex / 6)
 
-    // The app owns state ids and names; it creates the state and syncs it back
+    // The app creates the state and syncs it back
     sendToParent({ action: 'add-state-request', x: 150 + col * 140, y: 120 + row * 160 })
     store.set(editor_state, () => 'Add')
     return

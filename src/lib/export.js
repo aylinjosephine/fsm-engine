@@ -563,11 +563,7 @@ export function sendExportToMainState(isStoreSync = false) {
 
 // import of state table data as fsm state data
 // NEW: tried to make auto layout look like the fsm layout
-window.addEventListener('message', (event) => {
-  if (!isTrustedParentMessage(event)) return
-  if (event.data?.action !== 'fsmimport') return
-
-  const fsm = event.data.fsm
+export function applyFsmImport(fsm) {
   if (!fsm) return
   hasReceivedImport = true
 
@@ -778,6 +774,8 @@ window.addEventListener('message', (event) => {
   // set nodes silently so the editor can render them without triggering an export back to the app
   store.set(deleted_nodes, [])
   store.set(node_list, nodeAtoms)
+  // A state the app removed must not stay selected
+  if (!nodeAtoms[store.get(current_selected)]) store.set(current_selected, null)
 
   try {
     const nodesMap = buildNodeMap(nodeAtoms)
@@ -829,6 +827,13 @@ window.addEventListener('message', (event) => {
     if (echoUnlockId) clearTimeout(echoUnlockId)
     throw error
   }
+}
+
+window.addEventListener('message', (event) => {
+  if (!isTrustedParentMessage(event)) return
+  if (event.data?.action !== 'fsmimport') return
+
+  applyFsmImport(event.data.fsm)
 })
 
 export function clearFsmFromParent() {
