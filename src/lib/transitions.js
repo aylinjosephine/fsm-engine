@@ -194,8 +194,10 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
 // Handle a click event on a transition
 export function handleTransitionClick(id) {
   if (store.get(editor_state) === 'Remove') {
-    if (!removeTransitionById(id)) return
+    const transitionExists = (store.get(transition_list) ?? []).some((transition) => transition?.id === id)
+    if (!transitionExists) return
     addToHistory()
+    removeTransitionById(id)
     sendExportToMainState()
     return
   }

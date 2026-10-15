@@ -62,6 +62,7 @@ export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = 
   const previousInitialId = store.get(initial_state)
   const nextNodes = [...nodes]
 
+  addToHistory()
   // The initial flag only adds the arrow and an fsm without is is valid
   if (
     nextInitial &&
@@ -91,6 +92,5 @@ export function HandleSaveSettings(newName, newColor, newType, newMooreOutput = 
     store.set(initial_state, () => null)
   }
 
-  addToHistory()
   sendExportToMainState()
 }

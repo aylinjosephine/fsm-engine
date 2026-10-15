@@ -158,6 +158,7 @@ export function handleInitialArrowDrop(dropX, dropY) {
   const prevInitialId = store.get(initial_state)
   if (prevInitialId === closest.id) return
 
+  addToHistory()
   store.set(node_list, (prev) => {
     const next = [...prev]
     if (prevInitialId != null && next[prevInitialId]) {
@@ -177,7 +178,6 @@ export function handleInitialArrowDrop(dropX, dropY) {
     return next
   })
   store.set(initial_state, closest.id)
-  addToHistory()
   sendExportToMainState()
 }
 
@@ -209,13 +209,13 @@ export function HandleEditorClick(e) {
 export function HandleDragEnd(e, id) {
   const draggedState = store.get(stage_ref).findOne(`#state_${id}`) // Get the Circle
   const position = [draggedState.x(), draggedState.y()] // Get it's positions
+  addToHistory()
   // Update the State's Position in store
   store.set(node_list, (prev) => {
     const newNodes = [...prev]
     newNodes[id] = { ...newNodes[id], x: position[0], y: position[1] }
     return newNodes
   })
-  addToHistory()
 }
 
 // Handler Function for when a State is clicked
@@ -252,6 +252,7 @@ export function HandleStateClick(e, id) {
       // Define a new Transition
       const newTransition = makeTransition(tr_id, start_node, end_node)
 
+      addToHistory()
       // Update the transition_list store
       store.set(transition_list, (prev) => {
         const nextTransitions = [...prev]
@@ -287,8 +288,6 @@ export function HandleStateClick(e, id) {
 
         return newNodes
       })
-
-      addToHistory()
 
       // Open Popup for labeling
       if (store.get(fsm_type) !== 'Free Style') {
