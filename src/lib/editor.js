@@ -337,6 +337,8 @@ export function HandleScrollWheel(e) {
   // in that case lets revert direction
   if (e.evt.ctrlKey) {
     direction = -direction
+    // cancel browser zooming so only the canvas zooms
+    e.evt.preventDefault()
   }
 
   const scaleBy = 1.01
