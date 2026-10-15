@@ -144,8 +144,6 @@ export function removeTransitionById(id) {
   const transitionEntry = store.get(transition_list).find((t) => t?.id === id)
   if (!transitionEntry) return false
 
-  const from_state = transitionEntry.from
-  const to_state = transitionEntry.to
   const targetGroupId = getTransitionGroupId(transitionEntry)
   const transitionIds = (store.get(transition_list) ?? [])
     .map((transition, index) =>
@@ -167,24 +165,16 @@ export function removeTransitionById(id) {
   })
 
   store.set(node_list, (old) => {
-    const newNodes = [...old]
-
-    if (newNodes[from_state]) {
-      newNodes[from_state] = {
-        ...newNodes[from_state],
-        transitions: newNodes[from_state].transitions.filter(
-          (tr) => !transitionIds.includes(tr.id),
-        ),
-      }
-    }
-
-    if (from_state !== to_state && newNodes[to_state]) {
-      newNodes[to_state] = {
-        ...newNodes[to_state],
-        transitions: newNodes[to_state].transitions.filter((tr) => !transitionIds.includes(tr.id)),
-      }
-    }
-    return newNodes
+    return old.map((node) =>
+      node
+        ? {
+            ...node,
+            transitions: (node.transitions || []).filter(
+              (tr) => !transitionIds.includes(tr.id),
+            ),
+          }
+        : node,
+    )
   })
 
   return true
@@ -490,7 +480,16 @@ export function handleTransitionSave(labels) {
 
     // Attach overwritten transitions to node lists (they were previously hidden)
     store.set(node_list, (old) => {
-      const newNodes = [...old]
+      const newNodes = old.map((node) =>
+        node
+          ? {
+              ...node,
+              transitions: (node.transitions || []).filter(
+                (transitionRef) => !overlappingHiddenIds.includes(transitionRef.id),
+              ),
+            }
+          : node,
+      )
       overlappingHiddenIds.forEach((hid) => {
         const tr = updated[hid]
         if (!tr) return

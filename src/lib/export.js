@@ -98,6 +98,72 @@ function mergeBitPatterns(patterns, fallbackLength) {
   }).join('')
 }
 
+function canMergeInputPatterns(left, right) {
+  if (left.length !== right.length) return false
+
+  let differingBit = -1
+  for (let index = 0; index < left.length; index += 1) {
+    const leftBit = left.charAt(index)
+    const rightBit = right.charAt(index)
+    if (leftBit === rightBit) continue
+
+    // A don't-care is not equal to either concrete bit. Only an exact
+    // 0/1 pair may be generalized to x.
+    if (
+      !(
+        (leftBit === '0' && rightBit === '1') ||
+        (leftBit === '1' && rightBit === '0')
+      )
+    ) {
+      return false
+    }
+
+    if (differingBit >= 0) return false
+    differingBit = index
+  }
+
+  return differingBit >= 0
+}
+
+function mergeInputPatterns(patterns, fallbackLength) {
+  const normalized = Array.from(
+    new Set(
+      patterns
+        .filter((pattern) => typeof pattern === 'string')
+        .map((pattern) => normalizePatternBits(pattern, fallbackLength, 'x', 'right')),
+    ),
+  )
+  const merged = [...normalized]
+
+  let changed = true
+  while (changed) {
+    changed = false
+
+    for (let leftIndex = 0; leftIndex < merged.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < merged.length; rightIndex += 1) {
+        const left = merged[leftIndex]
+        const right = merged[rightIndex]
+        if (!canMergeInputPatterns(left, right)) continue
+
+        const combined = left
+          .split('')
+          .map((bit, index) => (bit === right.charAt(index) ? bit : 'x'))
+          .join('')
+
+        if (merged.includes(combined)) continue
+
+        merged.splice(rightIndex, 1)
+        merged.splice(leftIndex, 1, combined)
+        changed = true
+        break
+      }
+      if (changed) break
+    }
+  }
+
+  return merged
+}
+
 // normalize the pattern width
 function normalizeToBinaryIdPattern(pattern, bitCount) {
   return normalizePatternBits(pattern, bitCount, 'x', 'left')
@@ -208,17 +274,35 @@ function buildNodeMap(nodes) {
 }
 
 function attachTransitionsToNodes(nodes, transitions) {
+  const maxNodeId = nodes.reduce((max, node) => Math.max(max, Number(node?.id ?? -1)), 0)
+  const totalStates = Math.max(1, maxNodeId + 1)
+  const nodeBitCount = totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
+
+  const targetIdsForTransition = (transition) => {
+    if (Number.isFinite(transition.to) && transition.to >= 0) {
+      return [transition.to]
+    }
+
+    const pattern = normalizePatternBits(
+      transition.toBinaryId ?? '',
+      nodeBitCount,
+      'x',
+      'left',
+    )
+    return expandDontCares(pattern)
+      .map((binaryId) => resolveNodeIdByBinary(nodes, binaryId, nodeBitCount))
+      .filter((nodeId, index, ids) => nodeId >= 0 && ids.indexOf(nodeId) === index)
+  }
+
   transitions.forEach((transition) => {
     if (!transition) return
-
-    // Do not attach hidden don't-care transitions to node transition lists
-    if (transition.hiddenDontCare) return
 
     const transitionRef = {
       from: transition.from,
       to: transition.to,
       id: transition.id,
       tr_name: transition.id,
+      toBinaryId: transition.toBinaryId,
     }
 
     if (nodes[transition.from]) {
@@ -228,12 +312,14 @@ function attachTransitionsToNodes(nodes, transitions) {
       }
     }
 
-    if (transition.from !== transition.to && nodes[transition.to]) {
-      nodes[transition.to] = {
-        ...nodes[transition.to],
-        transitions: [...(nodes[transition.to].transitions || []), transitionRef],
-      }
-    }
+    targetIdsForTransition(transition)
+      .filter((targetId) => targetId !== transition.from && nodes[targetId])
+      .forEach((targetId) => {
+        nodes[targetId] = {
+          ...nodes[targetId],
+          transitions: [...(nodes[targetId].transitions || []), transitionRef],
+        }
+      })
   })
 }
 
@@ -656,6 +742,9 @@ export function applyFsmImport(fsm) {
         'x',
         'left',
       )
+      // Inputs may be combined only after source, target and output have
+      // matched exactly. The input merger below permits only one concrete
+      // 0/1 difference at a time.
       const key = `${transition.from}:${targetPattern}:${baseLabelOutput}`
       const existing = grouped.get(key) || {
         transition,
@@ -668,16 +757,23 @@ export function applyFsmImport(fsm) {
       grouped.set(key, existing)
     })
 
-    return Array.from(grouped.values()).map((entry) => {
+    return Array.from(grouped.values()).flatMap((entry) => {
       const fallbackLength = Math.max(1, ...entry.inputs.map((input) => input.length))
-      const mergedInput = mergeBitPatterns(entry.inputs, fallbackLength)
-      return {
-        ...entry.transition,
-        input: mergedInput,
-        output: entry.baseLabelOutput,
-        mealy_output: entry.baseLabelOutput,
-        toBinaryId: entry.targetPattern,
-      }
+      const mergedInputs = mergeInputPatterns(entry.inputs, fallbackLength)
+      return mergedInputs.map((mergedInput) => {
+        const label = isMoore
+          ? mergedInput
+          : `${mergedInput}/${entry.baseLabelOutput || 'x'.repeat(store.get(output_bit_count) || 1)}`
+        return {
+          ...entry.transition,
+          groupId: undefined,
+          label,
+          input: mergedInput,
+          output: entry.baseLabelOutput,
+          mealy_output: entry.baseLabelOutput,
+          toBinaryId: entry.targetPattern,
+        }
+      })
     })
   })()
 
@@ -706,7 +802,7 @@ export function applyFsmImport(fsm) {
       renderableTransitions.push({
         ...transition,
         id: nextTransitionId++,
-        groupId: transition.groupId ?? transition.id ?? 0,
+        groupId: transition.groupId ?? nextTransitionId,
         toBinaryId: targetPattern,
         input: baseLabelInput,
         output: baseLabelOutput,
@@ -726,7 +822,7 @@ export function applyFsmImport(fsm) {
       renderableTransitions.push({
         ...transition,
         id: nextTransitionId++,
-        groupId: transition.groupId ?? transition.id ?? 0,
+        groupId: transition.groupId ?? nextTransitionId,
         to: resolvedTo,
         toBinaryId: targetPattern,
         input: baseLabelInput,
@@ -746,7 +842,7 @@ export function applyFsmImport(fsm) {
         renderableTransitions.push({
           ...transition,
           id: nextTransitionId++,
-          groupId: transition.groupId ?? transition.id ?? 0,
+          groupId: transition.groupId ?? nextTransitionId,
           hiddenDontCare: false,
           label: normalizedLabel,
         })
