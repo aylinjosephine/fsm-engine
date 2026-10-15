@@ -169,9 +169,7 @@ export function removeTransitionById(id) {
       node
         ? {
             ...node,
-            transitions: (node.transitions || []).filter(
-              (tr) => !transitionIds.includes(tr.id),
-            ),
+            transitions: (node.transitions || []).filter((tr) => !transitionIds.includes(tr.id)),
           }
         : node,
     )
@@ -194,7 +192,9 @@ function padLabelToBitLengths(label, maxInput, maxOutput) {
 // Handle a click event on a transition
 export function handleTransitionClick(id) {
   if (store.get(editor_state) === 'Remove') {
-    const transitionExists = (store.get(transition_list) ?? []).some((transition) => transition?.id === id)
+    const transitionExists = (store.get(transition_list) ?? []).some(
+      (transition) => transition?.id === id,
+    )
     if (!transitionExists) return
     addToHistory()
     removeTransitionById(id)
@@ -474,7 +474,15 @@ export function handleTransitionSave(labels) {
         hiddenDontCare: false,
         groupId: updated[hid].groupId ?? updated[hid].id,
         tension: updated[hid].from === nextTo ? 1 : 0.5,
-        points: getTransitionPoints(updated[hid].from, nextTo, hid, nodesMap, updated),
+      }
+    })
+
+    // compute geometry for the updated transitions only after a full update
+    overlappingHiddenIds.forEach((hid) => {
+      if (!updated[hid]) return
+      updated[hid] = {
+        ...updated[hid],
+        points: getTransitionPoints(updated[hid].from, updated[hid].to, hid, nodesMap, updated),
       }
     })
 
