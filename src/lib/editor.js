@@ -467,9 +467,9 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transition
     return [0, 0, 100, 0]
   }
 
-  // Get all transitions between these two nodes
+  // Get all drawn transitions between these two nodes
   const allTransitions = (transitionsOverride || store.get(transition_list)).filter(
-    (t) => t && t.from === id1 && t.to === id2,
+    (t) => t && t.from === id1 && t.to === id2 && !t.hiddenDontCare,
   )
 
   // Sort them by ID to ensure consistent ordering
@@ -539,10 +539,10 @@ export function getTransitionPoints(id1, id2, tr_id, nodesMap = null, transition
   const midpoint = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2]
   const dist = Math.sqrt((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2)
 
-  // Dynamic curvature calculation
+  // Dynamic curvature calculation.
   const baseCurvature = 0.2
   const curvatureStep = 0.15
-  const curvature = baseCurvature
+  const curvature = baseCurvature + effectiveIndex * curvatureStep
 
   let subpoint2
 
