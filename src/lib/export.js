@@ -109,12 +109,7 @@ function canMergeInputPatterns(left, right) {
 
     // A don't-care is not equal to either concrete bit. Only an exact
     // 0/1 pair may be generalized to x.
-    if (
-      !(
-        (leftBit === '0' && rightBit === '1') ||
-        (leftBit === '1' && rightBit === '0')
-      )
-    ) {
+    if (!((leftBit === '0' && rightBit === '1') || (leftBit === '1' && rightBit === '0'))) {
       return false
     }
 
@@ -215,7 +210,6 @@ function collapseTransitionsForExport(transitions, definedNodes) {
   const maxNodeId = definedNodes.reduce((m, n) => Math.max(m, Number(n?.id ?? -1)), 0)
   const totalStates = Math.max(1, maxNodeId + 1)
   const nodeBitCount = totalStates <= 1 ? 1 : Math.max(1, Math.ceil(Math.log2(totalStates)))
-  const isMoore = store.get(fsm_type) === 'moore'
   const groups = new Map()
 
   transitions.forEach((transition) => {
@@ -244,23 +238,9 @@ function collapseTransitionsForExport(transitions, definedNodes) {
       toBinaryId: mergedToBinaryId,
     })
 
-    if (!isMoore) return normalizedTransition
-
-    const output = resolveMooreTransitionOutput(normalizedTransition, definedNodes)
-    return {
-      ...normalizedTransition,
-      output,
-      mealy_output: output,
-    }
+    // A Moore transition has no output of its own, the output belongs to the states
+    return normalizedTransition
   })
-}
-
-function resolveMooreTransitionOutput(transition, definedNodes) {
-  const targetNode = definedNodes.find((node) => node?.id === transition?.to)
-  if (targetNode) {
-    return String(targetNode.moore_output ?? '').replace(/-/g, 'x')
-  }
-  return String(transition?.output ?? transition?.mealy_output ?? '').replace(/-/g, 'x')
 }
 
 function buildNodeMap(nodes) {
@@ -283,12 +263,7 @@ function attachTransitionsToNodes(nodes, transitions) {
       return [transition.to]
     }
 
-    const pattern = normalizePatternBits(
-      transition.toBinaryId ?? '',
-      nodeBitCount,
-      'x',
-      'left',
-    )
+    const pattern = normalizePatternBits(transition.toBinaryId ?? '', nodeBitCount, 'x', 'left')
     return expandDontCares(pattern)
       .map((binaryId) => resolveNodeIdByBinary(nodes, binaryId, nodeBitCount))
       .filter((nodeId, index, ids) => nodeId >= 0 && ids.indexOf(nodeId) === index)
