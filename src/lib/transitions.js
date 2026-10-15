@@ -315,23 +315,20 @@ export function getTransitionConflict({ input, output = '' } = {}) {
     }
   }
 
-  // One row per state and input: the only allowed edit updates the values of that row
-  if (existingTargets.includes(draftPattern)) {
+  // One row per input: a newly drawn transition replaces the existing row,
+  // including its target, when it uses the same input.
+  if (requestedInput === existingInput) {
     const draftName =
       getNodeNamesForPatterns(nodes, [draftPattern], bitCount)[0] ?? showPattern(draftPattern)
 
-    if (requestedOutput === existingOutput) {
+    if (requestedOutput === existingOutput && existingTargets.includes(draftPattern)) {
       return {
         ...info,
         message: `This input already maps to ${nextStatePhrase([draftName])} - nothing would change.`,
       }
     }
 
-    return {
-      ...info,
-      replacesRow: true,
-      output: requestedOutput,
-    }
+    return { ...info, replacesRow: true, output: requestedOutput }
   }
 
   return {
@@ -407,28 +404,37 @@ export function handleTransitionSave(labels) {
   if (duplicateExists) {
     const conflict = getTransitionConflict({ input: nextInput, output: moore ? '' : nextOutput })
 
-    // Same target: the drawn transition replaces the values of the existing row
+    // The newly drawn transition replaces the existing row, including its target.
     if (activeTransition.isDraft && conflict?.replacesRow) {
-      const replacedGroupId = conflict.groupId
       addToHistory()
+
+      // Remove the old row first. This also removes its references from the
+      // source and target nodes. The draft already has references for its own
+      // source and target, so it can then be finalized in place.
+      const existingTransition = (store.get(transition_list) ?? []).find(
+        (transition) => transition && getTransitionGroupId(transition) === conflict.groupId,
+      )
+      if (existingTransition) {
+        removeTransitionById(existingTransition.id)
+      }
+
       store.set(transition_list, (old) =>
         old.map((transition) =>
-          transition && getTransitionGroupId(transition) === replacedGroupId
+          transition?.id === active_tr
             ? {
                 ...transition,
-                label: moore ? conflict.input : `${conflict.input}/${conflict.output}`,
-                input: conflict.input,
-                output: moore ? '' : conflict.output,
-                mealyOutput: moore ? undefined : conflict.output,
-                mealy_output: moore ? undefined : conflict.output,
+                groupId: active_tr,
+                label: moore ? nextInput : `${nextInput}/${nextOutput}`,
+                input: nextInput,
+                output: moore ? '' : nextOutput,
+                mealyOutput: moore ? undefined : nextOutput,
+                mealy_output: moore ? undefined : nextOutput,
                 hiddenDontCare: false,
                 isDraft: false,
               }
             : transition,
         ),
       )
-      // Drop the draft, so the state and input keep exactly one arrow
-      removeTransitionById(active_tr)
       store.set(show_popup, false)
       store.set(active_transition, null)
       sendExportToMainState()
